@@ -118,7 +118,7 @@ You declare a `SELECT` and a **`TARGET_LAG`**, and Snowflake decides when and ho
 - **Versus materialized views:** Snowflake MVs (Enterprise+) cover a **single table with no joins**. A serverless service maintains them and they are always current. Use one to speed up a single hot filter or aggregate. Dynamic tables handle joins and multi-step pipelines at a chosen lag.
 - **When not to use them:** when you need procedural logic, side effects, or custom SCD2 and merge semantics; when you need sub-minute latency; when a query silently falls back to FULL on a large table and cost explodes; or when a trivially cheap append-only stream plus task would do.
 
-**Databricks:** materialized views and streaming tables in Lakeflow Declarative Pipelines (formerly DLT).
+**Databricks:** materialized views and streaming tables in Lakeflow Declarative Pipelines (formerly DLT; current product name ⚠ verify).
 
 ### Loading: COPY, Snowpipe, Snowpipe Streaming
 
@@ -281,36 +281,35 @@ Data originates in OLTP systems, and moving it between write-optimized and read-
 
 ## Sources
 - https://docs.snowflake.com/en/user-guide/data-time-travel
-- https://docs.snowflake.com/en/user-guide/data-failsafe
-- https://docs.snowflake.com/en/user-guide/tables-temp-transient
+- https://docs.snowflake.com/ja/user-guide/tables-temp-transient
 - https://docs.snowflake.com/en/user-guide/object-clone
-- https://docs.snowflake.com/en/sql-reference/sql/create-clone
+- https://docs.snowflake.com/sql-reference/sql/create-clone
 - https://docs.snowflake.com/en/sql-reference/account-usage/streams
 - https://docs.snowflake.com/en/user-guide/tasks-triggered
-- https://docs.snowflake.com/en/release-notes/2024/8_27
-- https://docs.snowflake.com/en/sql-reference/sql/create-dynamic-table
+- https://docs.snowflake.com/release-notes/2024/8_27
+- https://docs.snowflake.com/sql-reference/sql/create-dynamic-table
 - https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh
 - https://docs.snowflake.com/en/user-guide/dynamic-tables/migrate-streams-tasks
-- https://docs.snowflake.com/en/user-guide/dynamic-tables-best-practices
-- https://docs.snowflake.com/en/user-guide/data-load-considerations-load
+- https://docs.snowflake.com/user-guide/dynamic-tables-best-practices
+- https://docs.snowflake.com/user-guide/data-load-considerations-load
 - https://docs.snowflake.com/en/user-guide/data-load-considerations-prepare
-- https://docs.snowflake.com/en/user-guide/data-load-snowpipe-manage
-- https://docs.snowflake.com/en/user-guide/snowpipe-streaming-high-performance-overview
+- https://docs.snowflake.com/user-guide/data-load-snowpipe-manage
+- https://docs.snowflake.com/user-guide/snowpipe-streaming-high-performance-overview
 - https://docs.snowflake.com/en/release-notes/2025/other/2025-09-23-snowpipe-streaming-high-performance-architecture
 - https://docs.snowflake.com/release-notes/2025/other/2025-11-10-snowpipe-streaming-gcp-ga
 - https://docs.snowflake.com/en/connectors/kafkahp/about
-- https://docs.snowflake.com/release-notes/2026/other/2026-04-20-kafka-connector-v4-ga
+- https://docs.snowflake.com/ko/release-notes/2026/other/2026-04-20-kafka-connector-v4-ga
 - https://docs.snowflake.com/en/user-guide/tables-iceberg-catalog-linked-database
 - https://docs.snowflake.com/release-notes/2025/other/2025-10-17-iceberg-external-writes-cld-ga
 - https://docs.snowflake.com/en/user-guide/tables-iceberg-query-using-external-query-engine-snowflake-horizon
 - https://docs.snowflake.com/release-notes/2026/other/2026-05-26-tables-iceberg-query-using-external-query-engine-snowflake-horizon-writes-ga
 - https://docs.snowflake.com/release-notes/2026/other/2026-08-18-externally-managed-iceberg-tables-horizon-irc-preview
 - https://docs.snowflake.com/en/user-guide/opencatalog/overview
-- https://docs.snowflake.com/en/user-guide/data-sharing-reader-create
-- https://docs.snowflake.com/en/user-guide/data-share-replication
+- https://docs.snowflake.com/en/user-guide/data-sharing-reader-create.html
+- https://docs.snowflake.com/user-guide/data-share-replication
 - https://docs.snowflake.com/en/collaboration/provider-listings-auto-fulfillment
 - https://docs.snowflake.com/release-notes/2026/other/2026-02-05-notebooks-in-workspaces
-- https://docs.snowflake.com/en/user-guide/snowflake-cortex/aisql
+- https://docs.snowflake.com/user-guide/snowflake-cortex/llm-functions
 - https://docs.snowflake.com/release-notes/2025/other/2025-11-04-cortex-aisql-operators-ga
 - https://docs.snowflake.com/en/release-notes/2025/other/2025-11-04-cortex-agents
 - https://docs.snowflake.com/release-notes/2025/other/2025-11-04-snowflake-intelligence
@@ -318,4 +317,4 @@ Data originates in OLTP systems, and moving it between write-optimized and read-
 - https://docs.snowflake.com/release-notes/2026/other/2026-02-24-snowflake-postgres-ga
 - https://docs.snowflake.com/release-notes/2025/other/2025-05-30-openflow
 - https://docs.snowflake.com/en/release-notes/openflow
-- https://docs.snowflake.com/en/user-guide/replication-intro
+- https://docs.snowflake.com/user-guide/replication-intro

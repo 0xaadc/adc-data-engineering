@@ -156,20 +156,17 @@ Retries make duplicate *delivery* unavoidable. What engines achieve is an **exac
 ### Landing streams in the lakehouse and warehouse
 
 **Databricks** ([§07](07-databricks-gap-fill.md)):
-- **Sources.** Structured Streaming reads Kafka directly (`format("kafka")`). Use **Auto Loader** (`cloudFiles`) when producers drop files.
-- **Lakeflow Spark Declarative Pipelines** (formerly DLT; `from pyspark import pipelines as dp`) declare **streaming tables** and materialized views. Pipelines run *triggered* or *continuous*, and real-time mode in pipelines is (Preview).
+- **Sources.** Read Kafka directly (`format("kafka")`), or use **Auto Loader** for files.
+- **Lakeflow Spark Declarative Pipelines** (formerly DLT) declare **streaming tables** and materialized views. Pipelines run *triggered* or *continuous*, and real-time mode in pipelines is (Preview).
 - **Triggers are the cost dial:**
-  - default or `processingTime`: always-on micro-batches.
+  - default or `processingTime`: always-on.
   - `availableNow`: drain the backlog, then stop. It is the only kind serverless supports, besides the deprecated `Once`.
   - `realTime`: (Preview).
-- **Small-file flood.** Each micro-batch commits at least one file per writing task, so a 10 s trigger × 200 tasks produces millions of files per day. Fixes:
+- **Small-file flood.** Each micro-batch commits at least one file per writing task. Mitigate with:
   - longer triggers
   - optimized writes
   - auto-compaction or `OPTIMIZE`
-  - **liquid clustering**, which clusters incrementally with no partition explosion
-  - predictive optimization
-
-  Never partition by a high-cardinality column (P4, [§13](13-performance-cost.md)).
+  - **liquid clustering** instead of high-cardinality partitioning ([§13](13-performance-cost.md))
 
 **Snowflake** ([§06](06-snowflake-features.md)):
 
