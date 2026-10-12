@@ -85,7 +85,10 @@ State is what operators remember between records: aggregates, open windows, join
 - **Temporal join** (Flink `FOR SYSTEM_TIME AS OF`): joins against the dimension version *as of event time*. Replay-correct, but the dimension's history must be kept in state.
 - **Stream–stream**: neither side is complete, so the engine buffers **both** sides until no match is possible. Bounding that requires watermarks on both inputs *and* an event-time range condition. Spark makes both mandatory for outer joins, and the outer-join null rows are emitted only once the watermark passes.
 
-**Dedup:** `dropDuplicates(key)` alone remembers every key forever. Include event time with a watermark, or use `dropDuplicatesWithinWatermark` (Spark 3.5+ ⚠ verify version), with a delay longer than the maximum gap between duplicates. Alternatively, dedup at the sink with a keyed MERGE.
+**Dedup:** `dropDuplicates(key)` alone remembers every key forever, so bound it:
+- Key on a stable, producer-assigned event id.
+- In-stream, add event time plus a watermark, or use `dropDuplicatesWithinWatermark` (Spark 3.5+ ⚠ verify version). Set the delay longer than the maximum gap between duplicates.
+- At the sink, a keyed MERGE is the correctness backstop.
 
 ### Fault tolerance: checkpoints and savepoints
 
@@ -272,10 +275,6 @@ The checkpoint encodes state layout: operators, keys, state schema, and Spark's 
 **Q: A job's state keeps growing until it falls over. What do you check?**
 
 Find what never expires: an aggregation without a watermark, `dropDuplicates` without event time, an unbounded stream–stream join, `complete` mode, or keyed state without TTL. Then look for key explosion (a request id used as a grouping key) and a frozen watermark (an idle Flink partition, or a lagging input under Spark's min policy). Fix the logic before tuning RocksDB.
-
-**Q: How do you deduplicate events from an at-least-once pipeline?**
-
-Require a stable producer-assigned event id. In-stream, use watermark-bounded dedup (`dropDuplicatesWithinWatermark`, or keyed state with TTL in Flink) sized to the maximum duplicate gap. At the sink, a MERGE on event id is the correctness backstop. I use both: cheap in-stream dedup for the common case, and MERGE for guarantees.
 
 **Q: Streaming into Delta created millions of small files. What do you do?**
 
