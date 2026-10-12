@@ -236,7 +236,7 @@ See [§09](09-batch-pipelines.md).
 
 ## Interview questions
 
-**Q: Walk me through how you'd approach a design question.**
+**Q: Can you walk me through how you'd approach a design question?**
 
 I clarify consumers, the decisions they make, freshness and correctness needs, volumes, compliance, and team skills, and I state my assumptions aloud. I sketch sources → ingest → store → transform → serve → govern, then go deep on the hardest one or two parts. I finish with tradeoffs, failure modes and recovery, and evolution at 10x. Each component gets a one-line "why" tied to a requirement.
 

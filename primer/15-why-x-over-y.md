@@ -121,7 +121,7 @@ They optimize for different things:
 
 They layer rather than compete: normalized or Vault-style integration in silver, Kimball marts in gold, and OBTs as consumption views for specific dashboards or ML features ([§03](03-data-modeling.md)).
 
-**Q: dbt or native transforms (Dynamic Tables, Lakeflow Declarative Pipelines)?**
+**Q: dbt or native transforms (Dynamic Tables, Lakeflow Spark Declarative Pipelines)?**
 
 dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects such as dynamic tables or streaming tables (⚠ verify the current adapter support).
 

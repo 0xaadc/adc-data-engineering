@@ -199,7 +199,7 @@ Choose by where the work lives and how heterogeneous the estate is (P10). Airflo
 
 Schedules are predictable, but they trade wasted runs against latency because you're guessing when upstream data will be ready. Event triggers run exactly when data lands. They bring bursts, duplicate events and the need for absence alerting. Use events for data-readiness dependencies and schedules for business deadlines, and monitor freshness either way.
 
-**Q: dbt vs Dynamic Tables / Lakeflow Declarative Pipelines?**
+**Q: dbt vs Dynamic Tables / Lakeflow Spark Declarative Pipelines?**
 
 dbt gives portability, CI-friendly tests, docs and environments, and a vendor-neutral DAG. Native declarative tables let the engine own incremental computation and scheduling, with fewer moving parts and lower latency, in exchange for lock-in (P10, P11). The native risk is a silent full-refresh fallback, so pin the refresh mode. Pragmatically: author in dbt and materialize latency-sensitive models as dynamic or streaming tables, and check an adapter's Fusion status before standardizing on Fusion.
 

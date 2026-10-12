@@ -200,7 +200,7 @@ How each principle shows up in each system:
 | P8 Schema contract | Schema-on-write; schema evolution options | Schema enforcement and evolution | Schema Registry compatibility modes |
 | P9 Govern data | Horizon: tags, masking, row access policies | Unity Catalog: tags, row filters, column masks, ABAC | ACLs; governance mostly external |
 | P10 Control vs. operability | Managed by default | Configurable by default, serverless option | Self-managed vs. Confluent/MSK/Event Hubs |
-| P11 Open formats | Iceberg tables, Open Catalog (Polaris) | Delta, UniForm, managed Iceberg, UC OSS | Open protocol; Tableflow-style topic→table |
+| P11 Open formats | Iceberg tables; Horizon Catalog Iceberg REST endpoint (Polaris-based) | Delta, UniForm, managed Iceberg, UC OSS | Open protocol; Tableflow-style topic→table |
 
 ## Interview questions
 
