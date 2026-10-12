@@ -49,9 +49,9 @@ If upstream data can rebuild a table, make it transient. A transient database or
 - **Gotchas:**
   - Grants: a cloned database or schema doesn't inherit grants on the container itself, though child objects keep theirs. A table clone gets no grants without `COPY GRANTS`.
   - Tasks in a clone start suspended.
-  - A cloned stream's unconsumed rows are inaccessible (⚠ verify).
-  - Pipes on internal stages are not cloned, and internal named stages need an explicit option (⚠ verify).
-  - Load metadata isn't cloned, so a COPY can reload files (⚠ verify).
+  - A cloned stream's unconsumed rows are inaccessible.
+  - Pipes on internal stages are not cloned, and internal named stages need `INCLUDE INTERNAL STAGES`.
+  - Load metadata isn't cloned, so a COPY can reload files.
   - A clone is not DR: it shares the account, region and storage.
 - **Databricks:** `SHALLOW CLONE`. Snowflake reference-counts storage, so a clone can't break. A Delta shallow clone breaks if `VACUUM` on the source removes files it points to.
 
@@ -64,7 +64,7 @@ A stream holds **no data**. It is an **offset** (a table version) plus the abili
 
 **The offset advances only when a DML statement that reads the stream commits.** A plain `SELECT` doesn't move it. Inside a transaction every statement sees the same snapshot, and the offset moves at `COMMIT`, so consuming the delta and writing the result succeed or fail together. That is exactly-once-*ish* (P6): no delta is lost or applied twice, but upstream can still resend data, so key your MERGE on a business key. Each consumer needs its own stream (P5).
 
-**Staleness:** if the offset falls outside the source's retention, the history needed for the delta is gone and the stream is **stale**. You must recreate it and reconcile with a full comparison. Snowflake extends retention for unconsumed streams up to `MAX_DATA_EXTENSION_TIME_IN_DAYS` (default 14 days, ⚠ verify). Monitor `STALE_AFTER`.
+**Staleness:** if the offset falls outside the source's retention, the history needed for the delta is gone and the stream is **stale**. You must recreate it and reconcile with a full comparison. Snowflake extends retention for unconsumed streams up to `MAX_DATA_EXTENSION_TIME_IN_DAYS` (default 14 days). Monitor `STALE_AFTER`.
 **Databricks:** Change Data Feed. There the offset lives in the consumer's checkpoint. Here it is a database object you grant, clone and monitor.
 
 ### Tasks
@@ -99,13 +99,13 @@ You declare a `SELECT` and a **`TARGET_LAG`**, and Snowflake schedules the refre
 - **What blocks incremental:** non-deterministic functions, unsupported constructs (see the docs' supported-SQL list), and change ratios so high that FULL is cheaper.
 - **Versus materialized views:** Snowflake MVs (Enterprise+) are single-table with no joins and always current. Use one to speed up a single hot query, not to build a pipeline.
 - **When not to use them:** when you need procedural logic, side effects or custom SCD2 semantics, when you need sub-minute latency, or when a query silently falls back to FULL on a large table.
-- **Databricks:** materialized views and streaming tables in Lakeflow Spark Declarative Pipelines (formerly DLT; see [§07](07-databricks-gap-fill.md)).
+- **Databricks:** materialized views and streaming tables in Lakeflow pipelines (formerly DLT; see [§07](07-databricks-gap-fill.md)).
 
 ### Loading: COPY, Snowpipe, Snowpipe Streaming
 
 All three solve the same problem: knowing what has already been loaded (P6).
 - **`COPY INTO`:** batch loading on your warehouse, parallel across files, which is why the guidance is files of **100–250 MB compressed**. The table keeps **load metadata for 64 days**, so a rerun skips files it already loaded. `FORCE = TRUE` overrides that and duplicates data.
-- **Snowpipe:** a `PIPE` that wraps a COPY statement. It is triggered by cloud event notifications (`AUTO_INGEST`) or the REST API and runs serverless. Latency is about a minute and load order is not guaranteed. Dedupe metadata lives **in the pipe for 14 days**, so recreating a pipe erases it. Small files waste overhead, so aim for about one file per minute.
+- **Snowpipe:** a `PIPE` that wraps a COPY statement. It is triggered by cloud event notifications (`AUTO_INGEST`) or the REST API and runs serverless. Latency is about a minute and load order is not guaranteed. Dedupe metadata lives **in the pipe for 14 days**, so recreating a pipe erases it. Billing is per GB with no per-file charge, but file size still affects latency and throughput, so aim for 100–250 MB compressed or a new file about once per minute.
 - **Snowpipe Streaming:** rows, no files. The SDK opens **channels** on a table, and each batch carries an **offset token**. After a restart the client reads the last committed token and resumes, which gives exactly-once delivery from sources that can be replayed by offset (P5). The **high-performance architecture** (GA: AWS September 2025, Azure and GCP November 2025) adds a server-side `PIPE` for transforms and validation, a Rust-core SDK plus a REST API, and throughput pricing. Order of magnitude: about 10 GB/s per table and 5–10 seconds from ingest to query. For the classic architecture's deprecation timeline, ⚠ verify.
 - **Kafka connector:** version 4.0 (GA April 2026) is built on high-performance Snowpipe Streaming, with Kafka offsets carried as offset tokens. Earlier versions could also stage files for Snowpipe. See [§11](11-stream-processing.md).
 - **Databricks:** COPY INTO and Auto Loader cover files. Structured Streaming or Zerobus Ingest (⚠ verify status) cover rows.

@@ -41,7 +41,7 @@
 | Delta time travel / shallow clone | Time Travel / zero-copy clone |
 | Change Data Feed | Streams |
 | Lakeflow Jobs | Tasks (task graphs) |
-| Spark Declarative Pipelines MVs / streaming tables | Dynamic Tables (target lag) |
+| Lakeflow pipelines (formerly DLT) MVs / streaming tables | Dynamic Tables (target lag) |
 | Auto Loader | Snowpipe (files) / Snowpipe Streaming (rows) |
 | Delta Sharing (open protocol) | Secure Data Sharing (zero-copy in-region, closed) / listings / Marketplace |
 | PySpark DataFrame | Snowpark (DataFrame compiled to SQL pushdown) |
@@ -67,10 +67,10 @@
 1. A replicated, partitioned, **append-only log**. Consumers track their own offsets, so fan-out and replay are cheap (P5).
 2. **Ordering holds only within a partition.** The key picks the partition, so changing the partition count remaps keys.
 3. Partition count is the **ceiling on consumer-group parallelism**: at most one consumer per partition per group.
-4. Consumer lag is the health metric. Rebalances pause consumption (mitigated by cooperative rebalancing and the KIP-848 protocol).
+4. Consumer lag is the health metric. Rebalances pause consumption (mitigated by cooperative rebalancing and the KIP-848 protocol, which is GA since 4.0 but opt-in via `group.protocol=consumer`).
 5. Durability: **RF=3, `min.insync.replicas=2`, `acks=all`** survives one broker loss with no acknowledged-data loss. A second loss stops writes but loses nothing.
 6. Retention topics are **histories**. Compacted topics keep the latest value per key, so they behave like **tables** (tombstones delete).
-7. Idempotent producer and `acks=all` are default since 3.0. Transactions + `read_committed` give **exactly-once Kafka→Kafka only**. Anything else needs an idempotent sink (P6).
+7. Idempotent producer and `acks=all` are default since 3.0. Explicitly setting `acks=1` silently disables idempotence. Transactions + `read_committed` give **exactly-once Kafka→Kafka only**. Anything else needs an idempotent sink (P6).
 8. Schema Registry: **BACKWARD → upgrade consumers first. FORWARD → producers first. FULL → either order** (P8).
 9. Connect moves data in and out. **Debezium** reads the database log (WAL/binlog). The **outbox pattern** avoids dual writes.
 10. **4.0 is KRaft-only** (no ZooKeeper). Tiered storage is GA, diskless storage is coming, and topic→Iceberg/Delta materialization (e.g., Tableflow) is blurring streams and tables.
@@ -84,7 +84,7 @@
 3. A **watermark** is a guess about completeness: tight means low latency and dropped late data, loose means more state (P7).
 4. Every stateful operator needs an **expiry story**: a watermark, a time-bounded join, or a TTL.
 5. **Exactly-once = replayable source + deterministic checkpointed processing + idempotent or transactional sink.** Side effects need idempotency keys.
-6. **Spark SS** for lakehouse-native pipelines (micro-batch; real-time mode is Preview). **Flink** for ms-latency, event-time-heavy state. **Kafka Streams** for Kafka-native services (a library, not a cluster).
+6. **Spark SS** for lakehouse-native pipelines (micro-batch by default; real-time mode is GA on Databricks since Mar 2026, classic compute only, with no stream–stream outer joins). **Flink** for ms-latency, event-time-heavy state. **Kafka Streams** for Kafka-native services (a library, not a cluster).
 7. Databricks: use `availableNow` for "streaming code at batch cost". `Trigger.Once` is deprecated and continuous mode isn't supported, so use real-time mode instead.
 8. **Push back on "real-time"**: ask what decision it feeds and how fast that decision is made, then price each latency tier.
 
@@ -101,7 +101,7 @@
 
 | Old / commonly assumed | Current (Oct 2026) | Where |
 |---|---|---|
-| Delta Live Tables / "Lakeflow Declarative Pipelines" | **Lakeflow Spark Declarative Pipelines**; core open-sourced in Apache Spark; `APPLY CHANGES` → **AUTO CDC** | [§07](07-databricks-gap-fill.md) |
+| Delta Live Tables → briefly "Lakeflow (Spark) Declarative Pipelines" | **Lakeflow pipelines**, which extend open-source Apache Spark Declarative Pipelines (Spark 4.1+); `import dlt` → `from pyspark import pipelines as dp`; `APPLY CHANGES` → **AUTO CDC** | [§07](07-databricks-gap-fill.md) |
 | Databricks Workflows | **Lakeflow Jobs** | [§07](07-databricks-gap-fill.md) |
 | Databricks Asset Bundles | **Declarative Automation Bundles** (same `databricks bundle` CLI) | [§07](07-databricks-gap-fill.md), [§14](14-reliability-dataops.md) |
 | Mosaic AI Vector Search | **AI Search** | [§18](18-ai-on-data-platform.md) |
@@ -113,7 +113,7 @@
 | Multi-cluster warehouse max = 10 | Size-dependent (up to 300 for XS–M) | [§05](05-snowflake-architecture.md) |
 | Warehouses only come in T-shirt sizes | **Adaptive Compute** (GA, no fixed size) and **Interactive warehouses** also exist | [§05](05-snowflake-architecture.md) |
 | Kafka + ZooKeeper | **KRaft-only since 4.0**; share groups ("queues") GA | [§10](10-kafka.md) |
-| Spark continuous trigger on Databricks | Not supported. Use **real-time mode** (Preview); `Trigger.Once` deprecated → `availableNow` | [§11](11-stream-processing.md) |
+| Spark continuous trigger on Databricks | Not supported. Use **real-time mode** (GA since Mar 2026; still Preview inside Lakeflow pipelines); `Trigger.Once` deprecated → `availableNow` | [§11](11-stream-processing.md) |
 | dbt Labs independent | **Merged with Fivetran** | [§09](09-batch-pipelines.md) |
 
 These came from search summaries of official release notes, so confirm them before stating dates.

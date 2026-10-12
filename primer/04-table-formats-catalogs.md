@@ -222,17 +222,21 @@ Every rewrite leaves the old files in place, so storage grows and time travel ke
 - Delta Lake protocol: https://github.com/delta-io/delta/blob/master/PROTOCOL.md
 - Delta table property defaults (`checkpointInterval`, retention): https://github.com/delta-io/delta/blob/master/spark/src/main/scala/org/apache/spark/sql/delta/DeltaConfig.scala
 - Delta Lake 4.0 release: https://delta.io/blog/2025-09-25-delta-lake-40/
-- Apache Iceberg table spec: https://iceberg.apache.org/spec/ (read via https://github.com/apache/iceberg/blob/main/format/spec.md)
+- Delta Lake 4.1 release (catalog-managed tables production support): https://delta.io/blog/2026-03-01-delta-lake-4-1-0-released · https://docs.delta.io/delta-catalog-managed-tables/
+- Delta Lake 4.3 release (OSS `IcebergCompatV3`, experimental): https://delta.io/blog/2026-06-22-delta-4-3-release
+- Delta docs: retention defaults https://docs.delta.io/latest/delta-batch.html · VACUUM https://docs.delta.io/latest/delta-utility.html · S3 multi-cluster LogStore https://docs.delta.io/latest/delta-storage.html · UniForm https://docs.delta.io/latest/delta-uniform.html
+- Apache Iceberg table spec: https://iceberg.apache.org/spec/ (also https://github.com/apache/iceberg/blob/main/format/spec.md)
 - Iceberg REST Catalog OpenAPI: https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml
 - Hudi 1.0 announcement: https://hudi.apache.org/blog/2024/12/16/announcing-hudi-1-0-0
 - Hudi 1.1 announcement: https://hudi.apache.org/blog/2025/11/25/apache-hudi-release-1-1-announcement
+- Hudi schema evolution: https://hudi.apache.org/docs/schema_evolution
 - Polaris graduation: https://polaris.apache.org/blog/2026/02/19/apache-polaris-graduates-to-top-level-project/
-- Unity Catalog OSS: https://github.com/unitycatalog/unitycatalog
+- Unity Catalog OSS: https://github.com/unitycatalog/unitycatalog · https://lfaidata.foundation/projects/unity-catalog/
 - Databricks UniForm: https://docs.databricks.com/aws/en/delta/uniform
 - Databricks Iceberg overview and v3: https://docs.databricks.com/aws/en/iceberg/ · https://docs.databricks.com/aws/en/iceberg/iceberg-v3
-- Databricks platform release notes (managed/foreign Iceberg and Iceberg v3 GA, May 2026): https://docs.databricks.com/aws/en/release-notes/product/
+- Databricks platform release notes (managed/foreign Iceberg and Iceberg v3 GA, May 21, 2026): https://docs.databricks.com/aws/en/release-notes/product/2026/may
 - Snowflake catalog-linked databases and external writes GA: https://docs.snowflake.com/release-notes/2025/other/2025-10-17-iceberg-external-writes-cld-ga
 - Snowflake Iceberg v3 GA: https://docs.snowflake.com/release-notes/2026/other/2026-05-07-iceberg-v3-ga
 - Snowflake Horizon Iceberg REST access: https://docs.snowflake.com/en/user-guide/tables-iceberg-query-using-external-query-engine-snowflake-horizon · https://docs.snowflake.com/release-notes/2026/other/2026-05-26-tables-iceberg-query-using-external-query-engine-snowflake-horizon-writes-ga
 - Snowflake S3 Tables REST integration GA: https://docs.snowflake.com/release-notes/2026/other/2026-08-10-amazon-s3-tables-iceberg-rest-catalog-integration-ga
-- Apache XTable: https://xtable.apache.org/ · https://incubator.apache.org/projects/xtable.html
+- Apache XTable: https://xtable.apache.org/ · https://incubator.apache.org/projects/xtable.html · https://xtable.apache.org/docs/features-and-limitations

@@ -71,7 +71,7 @@ The useful framing in 2026 is no longer "warehouse vs lakehouse." It is: who own
 
 ### Medallion architecture (bronze, silver, gold)
 
-The pattern was popularized by Databricks (⚠ verify the exact origin). It is a convention for progressive refinement:
+The pattern was popularized by Databricks, whose docs recommend it and also call it a "multi-hop" architecture. It is a convention for progressive refinement:
 
 - **Bronze:** data exactly as received, append-only, plus ingestion metadata such as source, load time and offsets. This is your **replay point**: if logic changes, you rebuild downstream from here without re-pulling the source (P5, P6).
 - **Silver:** cleaned, typed, deduplicated and conformed entities, with keys and contracts enforced (P8).
@@ -119,7 +119,7 @@ Processing semantics are covered in [§11](11-stream-processing.md).
 
 ### HTAP and "zero-ETL": trying to collapse P1
 
-A newer trend puts transactional and analytical storage under one roof, or hides the pipe between them. Examples are Snowflake hybrid tables, which are row-oriented tables inside Snowflake (⚠ verify current availability), managed Postgres offerings on both platforms (Snowflake Postgres; Databricks Lakebase, ⚠ verify status of both), and cloud "zero-ETL" replication from OLTP databases into warehouses. None of these repeals P1. They run a row engine and a column engine side by side and automate the CDC between them. You still own modeling, replication lag, schema-change propagation (P8) and the cost of the managed pipe. See [§06](06-snowflake-features.md) and [§07](07-databricks-gap-fill.md).
+A newer trend puts transactional and analytical storage under one roof, or hides the pipe between them. Examples are Snowflake hybrid tables, which are row-oriented tables inside Snowflake **(GA, AWS and Azure commercial regions only)**, managed Postgres offerings on both platforms (Snowflake Postgres **(GA, Feb 2026)**; Databricks Lakebase **(GA, Jan 2026)**), and cloud "zero-ETL" replication from OLTP databases into warehouses. None of these repeals P1. They run a row engine and a column engine side by side and automate the CDC between them. You still own modeling, replication lag, schema-change propagation (P8) and the cost of the managed pipe. See [§06](06-snowflake-features.md) and [§07](07-databricks-gap-fill.md).
 
 ## Comparison
 
@@ -201,3 +201,8 @@ They eliminate pipe-building, not P1. Underneath they run row and column storage
 ## Sources
 - Lakehouse paper (CIDR 2021): https://vldb.org/cidrdb/papers/2021/cidr2021_paper17.pdf · https://www.databricks.com/research/lakehouse-a-new-generation-of-open-platforms-that-unify-data-warehousing-and-advanced-analytics
 - Apache Parquet format specification: https://github.com/apache/parquet-format/blob/master/README.md
+- Lakehouse paper PDF (CIDR mirror): https://www.cidrdb.org/cidr2021/papers/cidr2021_paper17.pdf
+- Databricks medallion architecture: https://docs.databricks.com/aws/en/lakehouse/medallion · https://www.databricks.com/glossary/medallion-architecture
+- Snowflake hybrid tables: https://docs.snowflake.com/en/user-guide/tables-hybrid
+- Snowflake Postgres GA (Feb 24, 2026): https://docs.snowflake.com/en/release-notes/2026/other/2026-02-24-snowflake-postgres-ga
+- Databricks Lakebase release notes (GA, Jan 22, 2026): https://docs.databricks.com/aws/en/release-notes/lakebase/
