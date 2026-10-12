@@ -45,7 +45,7 @@
 | Auto Loader | Snowpipe (files) / Snowpipe Streaming (rows) |
 | Delta Sharing (open protocol) | Secure Data Sharing (zero-copy in-region, closed) / listings / Marketplace |
 | PySpark DataFrame | Snowpark (DataFrame compiled to SQL pushdown) |
-| Mosaic AI / AI Functions / Vector Search / Genie | Cortex AI functions / Cortex Search / Cortex Analyst / Snowflake Intelligence |
+| Mosaic AI / Agent Bricks / AI Functions / AI Search (formerly Vector Search) / Genie | Cortex AI functions / Cortex Search / Cortex Analyst / Snowflake Intelligence |
 | Lakebase (Postgres) | Hybrid tables / Snowflake Postgres |
 | Lakeflow Connect | Openflow (managed NiFi) |
 
