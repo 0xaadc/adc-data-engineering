@@ -173,7 +173,6 @@ Apps need fast single-row reads and writes, which columnar tables handle poorly 
 - Lakebase and metric views extend the platform toward OLTP and a semantic layer.
 
 ## Sources
-- https://docs.databricks.com/aws/en/release-notes/dev-tools/bundles
 - https://docs.databricks.com/aws/en/dev-tools/bundles/faqs
 - https://docs.databricks.com/aws/en/dlt/python-ref
 - https://docs.databricks.com/gcp/en/dlt/concepts
