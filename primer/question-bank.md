@@ -871,9 +871,9 @@ First check whether it's a few partitions (a hot key, a poison pill or a hung co
 </details>
 
 <details>
-<summary><b>Q: Why did Kafka drop ZooKeeper, and what changes for you?</b></summary>
+<summary><b>Q: Why did Kafka drop ZooKeeper?</b></summary>
 
-ZooKeeper was a second distributed system to run and secure, and controller failover through it was slow, which capped partition counts. KRaft keeps metadata in a Raft-replicated internal log on a controller quorum. That gives faster failover, more partitions and a single system to operate. From 4.0 KRaft is the only mode, so migrate ZooKeeper clusters on 3.x (3.9 is the bridge release) before upgrading.
+ZooKeeper was a second distributed system to run and secure, and failover through it was slow, which also capped partition counts. KRaft stores metadata as a Raft-replicated internal log, so you get faster failover, more partitions and one system to operate. Since 4.0, KRaft is the only mode, so a ZooKeeper cluster must migrate while on 3.x (3.9 is the bridge release) before it can upgrade.
 
 </details>
 

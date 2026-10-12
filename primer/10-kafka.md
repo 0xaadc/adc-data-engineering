@@ -20,11 +20,7 @@ offset:  0    1    2    3    4    5    6    7   <- append
   group "lake-ingest" at 2 (lag 6)    group "fraud" at 7 (caught up)
 ```
 
-Kafka is fast because of its structure:
-- **Sequential I/O.** Producers append to segment files and consumers tail them. Nothing is updated in place (P1).
-- **The OS page cache acts as the cache.** Consumers that keep up read recent records from memory instead of disk.
-- **Batches stay intact end to end.** The producer compresses a batch, the broker stores and serves it unchanged (zero-copy where TLS allows), and the consumer decompresses it.
-- **The broker stays simple.** It keeps no delivery state per message. A consumer group's progress is just one integer per partition, so adding another group costs almost nothing.
+Kafka is fast because of its structure. Writes are sequential appends to segment files, and nothing is updated in place (P1). Consumers that keep up read from the OS page cache, not from disk. Each batch stays intact end to end: the producer compresses it, the broker stores and serves it unchanged (zero-copy where TLS allows), and the consumer decompresses it. The broker also keeps no per-message delivery state, because a group's progress is one integer per partition. That makes another consumer group nearly free.
 
 ### Records, keys and partitions
 
@@ -32,11 +28,11 @@ A record has a **key, value, headers and timestamp**. Kafka treats key and value
 
 The default partitioner sends each record to `hash(key) % partitions`. That means **one key always maps to one partition, and its records stay in order there. Kafka gives no ordering across partitions.** Records with a null key are spread across partitions with no ordering at all. Choose a key that identifies the entity whose events must stay in order, such as `account_id`.
 
-Several consequences follow from that formula:
-- **Hot partitions.** One huge key overloads one partition and therefore one consumer, and adding partitions doesn't help. Your options are a finer key, salting the key (which gives up per-entity order), or a separate topic for the heavy keys.
-- **Adding partitions remaps keys.** You can increase the partition count but never decrease it. Once N changes, a key's new events land in a different partition than its old ones, so ordering breaks and compacted topics can hold two "latest" values for the same key. Provision headroom up front.
-- **Partition count is a parallelism ceiling.** Within a group, each partition has at most one consumer.
-- **Over-partitioning has a cost.** Each partition adds files, memory and replication work, slows recovery, shrinks batches and lengthens rebalances.
+Consequences of `hash(key) % N`:
+- **Hot partitions:** one huge key overloads one partition and its consumer, and more partitions won't help. Use a finer key, salt the key (which loses per-entity order), or give heavy keys their own topic.
+- **Adding partitions remaps keys:** the count can grow but never shrink. When N changes, a key's new events land in a different partition from its old ones, so order breaks and compacted topics can keep two "latest" values. Provision headroom up front.
+- **Parallelism ceiling:** each partition has at most one consumer per group.
+- **Over-partitioning cost:** every partition adds files, memory and replication work, slows recovery, shrinks batches and lengthens rebalances.
 
 ### Consumer groups, offsets, rebalancing
 
@@ -231,9 +227,9 @@ Start from the cloud and the team (P10). Event Hubs is Azure-native and gives yo
 
 First check whether it's a few partitions (a hot key, a poison pill or a hung consumer) or all of them (a throughput mismatch). Then check rebalances, consumer CPU and the sink. Slow database writes or tiny file commits are the most common cause. Fix it by scaling to the partition count, batching sink writes, rekeying, or sending poison pills to a DLQ. Add partitions only if parallelism really is the ceiling, and judge lag in seconds against the freshness SLA (P7).
 
-**Q: Why did Kafka drop ZooKeeper, and what changes for you?**
+**Q: Why did Kafka drop ZooKeeper?**
 
-ZooKeeper was a second distributed system to run and secure, and controller failover through it was slow, which capped partition counts. KRaft keeps metadata in a Raft-replicated internal log on a controller quorum. That gives faster failover, more partitions and a single system to operate. From 4.0 KRaft is the only mode, so migrate ZooKeeper clusters on 3.x (3.9 is the bridge release) before upgrading.
+ZooKeeper was a second distributed system to run and secure, and failover through it was slow, which also capped partition counts. KRaft stores metadata as a Raft-replicated internal log, so you get faster failover, more partitions and one system to operate. Since 4.0, KRaft is the only mode, so a ZooKeeper cluster must migrate while on 3.x (3.9 is the bridge release) before it can upgrade.
 
 ## Takeaways
 - Kafka is a replicated, partitioned, append-only log, and consumers own their position (P5).
