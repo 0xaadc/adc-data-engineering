@@ -123,7 +123,7 @@ They layer rather than compete: normalized or Vault-style integration in silver,
 
 **Q: dbt or native transforms (Dynamic Tables, Lakeflow Spark Declarative Pipelines)?**
 
-dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects such as dynamic tables or streaming tables (⚠ verify the current adapter support).
+dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects: `dynamic_table` in dbt-snowflake, and `materialized_view` / `streaming_table` in dbt-databricks (the latter needs Unity Catalog and serverless SQL warehouses).
 
 **Q: Serverless or provisioned compute?**
 
@@ -146,7 +146,7 @@ Running two because two teams each prefer one is an organizational problem disgu
 
 **Q: Partitioning or clustering?**
 
-Hive-style partitioning physically separates data by directory. That works for coarse, low-cardinality columns that every query filters on (e.g., date on very large tables). On high-cardinality columns it produces small files, and a bad choice is expensive to undo. Clustering sorts data within files so that min/max ranges are narrow and skipping works (P4), and modern implementations (liquid clustering, Snowflake automatic clustering) can be changed and maintained incrementally. Today's default is to cluster rather than partition, except for very large tables with an obvious, stable partition column.
+Hive-style partitioning physically separates data by directory. That works for coarse, low-cardinality columns that every query filters on (e.g., date on very large tables). On high-cardinality columns it produces small files, and a bad choice is expensive to undo. Clustering sorts data within files so that min/max ranges are narrow and skipping works (P4), and modern implementations (liquid clustering, Snowflake automatic clustering) can be changed and maintained incrementally. Today's default is to cluster rather than partition. Databricks' own guidance is: don't partition under 1 TB, prefer liquid clustering from 1 to 100 TB, and consider partitioning only above ~100 TB, with each partition holding at least 1 GB.
 
 **Q: `MERGE` into current state, or append and deduplicate on read?**
 
@@ -172,6 +172,8 @@ Fabric is a SaaS bundle with capacity-based pricing, centered on Power BI and On
 ## Sources
 
 - Databricks: When to partition tables — https://docs.databricks.com/aws/en/tables/partitions
+- dbt: Snowflake configs (dynamic tables) — https://docs.getdbt.com/reference/resource-configs/snowflake-configs
+- dbt: Databricks configs (materialized views, streaming tables) — https://docs.getdbt.com/reference/resource-configs/databricks-configs
 - Databricks: Liquid clustering — https://docs.databricks.com/aws/en/delta/clustering
 - Snowflake: Apache Iceberg tables — https://docs.snowflake.com/en/user-guide/tables-iceberg
 - Snowflake: Dynamic tables — https://docs.snowflake.com/en/user-guide/dynamic-tables-about
