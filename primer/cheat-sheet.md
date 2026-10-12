@@ -97,6 +97,27 @@
 5. Unit price is not job price. **TCO includes people.**
 6. Iceberg makes "one copy, two engines" real. It fails through catalog ambiguity, feature lag and unclear maintenance ownership.
 
+## 7b. Recent renames and 2025–26 changes (stale prep material gets these wrong)
+
+| Old / commonly assumed | Current (Oct 2026) | Where |
+|---|---|---|
+| Delta Live Tables / "Lakeflow Declarative Pipelines" | **Lakeflow Spark Declarative Pipelines**; core open-sourced in Apache Spark; `APPLY CHANGES` → **AUTO CDC** | [§07](07-databricks-gap-fill.md) |
+| Databricks Workflows | **Lakeflow Jobs** | [§07](07-databricks-gap-fill.md) |
+| Databricks Asset Bundles | **Declarative Automation Bundles** (same `databricks bundle` CLI) | [§07](07-databricks-gap-fill.md), [§14](14-reliability-dataops.md) |
+| Mosaic AI Vector Search | **AI Search** | [§18](18-ai-on-data-platform.md) |
+| "Databricks has no managed DR" | Managed Disaster Recovery in gated Preview | [§14](14-reliability-dataops.md) |
+| Snowflake Open Catalog for external Iceberg access | **Horizon Catalog's own Iceberg REST endpoint** (external reads and writes GA); Open Catalog closed to new customers | [§04](04-table-formats-catalogs.md), [§06](06-snowflake-features.md) |
+| Apache Polaris (incubating) | Apache **top-level project** | [§04](04-table-formats-catalogs.md) |
+| Snowflake can't read Delta | Reads **Delta Shares natively** (as catalog-linked databases) | [§08](08-snowflake-vs-databricks.md) |
+| Snowpipe Streaming (classic) | **High-performance architecture** (PIPE object, ~5–10 s); Kafka connector v4 built on it | [§06](06-snowflake-features.md), [§11](11-stream-processing.md) |
+| Multi-cluster warehouse max = 10 | Size-dependent (up to 300 for XS–M) | [§05](05-snowflake-architecture.md) |
+| Warehouses only come in T-shirt sizes | **Adaptive Compute** (GA, no fixed size) and **Interactive warehouses** also exist | [§05](05-snowflake-architecture.md) |
+| Kafka + ZooKeeper | **KRaft-only since 4.0**; share groups ("queues") GA | [§10](10-kafka.md) |
+| Spark continuous trigger on Databricks | Not supported. Use **real-time mode** (Preview); `Trigger.Once` deprecated → `availableNow` | [§11](11-stream-processing.md) |
+| dbt Labs independent | **Merged with Fivetran** | [§09](09-batch-pipelines.md) |
+
+These came from search summaries of official release notes, so confirm them before stating dates.
+
 ## 8. Foundations in one line each
 
 - **Lakehouse vs. warehouse (2026):** the real axis is format ownership, catalog ownership and engine plurality ([§02](02-storage-paradigms.md)).
