@@ -81,14 +81,14 @@ A **clustering key** names the columns or expressions whose rows should sit in t
 - **Worth it when** the table is large (the docs say typically multi-TB), most queries filter selectively on the same few columns, and reads far outnumber changes.
 - **Not worth it when** the table is small, already naturally clustered, or high-churn.
 - **Avoid very high-cardinality keys** (raw timestamps, UUIDs): upkeep is costly. Cluster on an expression like `TO_DATE(ts)` instead. Very low-cardinality keys, such as booleans, give little pruning.
-- **Limits:** at most 3–4 columns, ordered from low to high cardinality. Pilot on one or two tables and track `AUTOMATIC_CLUSTERING_HISTORY`.
+- **Guidance:** at most 3–4 columns (a recommendation, not a hard limit), ordered from low to high cardinality. Pilot on one or two tables and track `AUTOMATIC_CLUSTERING_HISTORY`.
 
-The docs also describe an **Optima Clustering** billing model that charges by data volume ingested instead of compute hours **(⚠ verify status and rate)**.
+Since September 1, 2026, newly clustered tables use **Optima Clustering**, which bills by uncompressed data volume ingested (0.007 credits per uncompressed GB, reduced by an overlap factor) instead of compute hours. Tables already clustered stay on Clustering Classic.
 
 ### Other ways to skip work
 
 - **Search Optimization Service (SOS)** (Enterprise) builds a serverless-maintained *search access path*, a structure that works like an index. It serves equality and `IN` lookups that return few rows, substring and regex matches, and semi-structured fields. It helps columns that clustering can't serve, since a table has only one sort order. Cost grows with the enabled columns, their distinct values, and churn, so enable it per column. **Snowflake Optima** (on Gen2 and Adaptive warehouses) builds such indexes automatically for repeated point lookups at no extra cost.
-- **Query Acceleration Service (QAS)** (Enterprise) offloads eligible fragments of a query to serverless compute: large scans with selective filters or aggregations, and big `INSERT`/`COPY`. An outlier query no longer forces you to upsize the whole warehouse. A *scale factor* caps the extra compute (default 8). Test eligibility with `SYSTEM$ESTIMATE_QUERY_ACCELERATION`. A pending behavior change would turn QAS on by default for new standard warehouses **(⚠ verify)**.
+- **Query Acceleration Service (QAS)** (Enterprise) offloads eligible fragments of a query to serverless compute: large scans with selective filters or aggregations, and big `INSERT`/`COPY`. An outlier query no longer forces you to upsize the whole warehouse. A *scale factor* caps the extra compute (default 8 when you enable it explicitly). Test eligibility with `SYSTEM$ESTIMATE_QUERY_ACCELERATION`. QAS is already on by default for new Gen2 and multi-cluster warehouses (scale factor 2). The 2026_06 behavior change (enabled by default since September 2026, opt-out still possible) extends that to all new standard warehouses with scale factor 8.
 - **Materialized views** (Enterprise) are precomputed aggregates that stay up to date automatically ([§06](06-snowflake-features.md)).
 
 ### Virtual warehouses
@@ -100,14 +100,14 @@ The docs also describe an **Optima Clustering** billing model that charges by da
 - **Scale out** (multi-cluster, Enterprise) adds same-size clusters when queries queue. It fixes concurrency, not the speed of a single query.
   - Equal `MIN_CLUSTER_COUNT` and `MAX_CLUSTER_COUNT` is maximized mode; different values give auto-scale mode.
   - The maximum cluster count depends on size: up to 300 for XS–M, falling to 10 for 4XL and above.
-  - In auto-scale mode, the **Standard** policy (the default) starts clusters as soon as queries queue. **Economy** starts one only when it predicts enough work to keep it busy (about 6 minutes **(⚠ verify)**), trading some queuing for credits.
-  - Per-cluster concurrency is capped by `MAX_CONCURRENCY_LEVEL` (default 8 **(⚠ verify)**).
+  - In auto-scale mode, the **Standard** policy (the default) starts clusters as soon as queries queue. **Economy** starts one only when it predicts enough work to keep it busy (at least 6 minutes), trading some queuing for credits.
+  - Per-cluster concurrency is capped by `MAX_CONCURRENCY_LEVEL` (default 8).
 
 Newer compute options:
 
-- **Gen2 standard (GA, May 2025):** newer hardware and engine. It costs more credits per hour but is faster on most work. Set `GENERATION = '2'`. The 2026_03 behavior change makes it the default where available **(⚠ verify rollout)**. No 5XL or 6XL. The rate is about 1.35× Gen1 on AWS and 1.25× on Azure according to third-party sources **(⚠ verify against the Service Consumption Table)**.
-- **Snowpark-optimized (GA):** 16× the memory per node by default (`RESOURCE_CONSTRAINT = MEMORY_16X`). For memory-heavy Python, UDFs and ML. The 1 TB tiers are **(Preview)**.
-- **Adaptive Compute (GA June 2026, Enterprise+):** replaces the fixed size with workload-aware compute billed per query. You tune it with `MAX_QUERY_PERFORMANCE_LEVEL` and `QUERY_THROUGHPUT_MULTIPLIER`. The release note says select AWS regions **(⚠ verify current regions)**.
+- **Gen2 standard (GA, May 2025):** newer hardware and engine. It costs more credits per hour but is faster on most work. Set `GENERATION = '2'`. The 2026_03 behavior change, generally enabled since June 2026, makes it the default for new standard warehouses where available. No 5XL or 6XL. The Service Consumption Table rate is 1.35× Gen1 on AWS and GCP and 1.25× on Azure.
+- **Snowpark-optimized (GA):** 16× the memory per node by default (`RESOURCE_CONSTRAINT = MEMORY_16X`). For memory-heavy Python, UDFs and ML. The 1 TB tiers (`MEMORY_64X`) are **(Preview)** and AWS only.
+- **Adaptive Compute (GA June 2026, Enterprise+):** replaces the fixed size with workload-aware compute billed per query. You tune it with `MAX_QUERY_PERFORMANCE_LEVEL` and `QUERY_THROUGHPUT_MULTIPLIER`. The GA release note listed six AWS regions; the docs now list select AWS, Azure and GCP regions.
 - **Interactive warehouses (GA Dec 2025):** sub-second, high-concurrency serving for dashboards and APIs. The minimum billing period is 1 hour and the minimum auto-suspend is 24 hours, so they are always-on serving, not batch compute.
 
 ### Caching: three layers
@@ -117,14 +117,14 @@ Newer compute options:
    - **Reuse requires** identical query text, unchanged data, no non-reusable functions (`RANDOM`, `UUID_STRING`), no external functions or hybrid tables, and a role with the right privileges. No warehouse is needed.
    - Use `USE_CACHED_RESULT = FALSE` when benchmarking.
 2. **Warehouse cache (local SSD).** Holds micro-partition data the warehouse has already read. It is **dropped on suspend** and when the warehouse is resized down. That is why auto-suspend is a tradeoff: the docs suggest about 10 minutes for BI warehouses and about 5 for ETL or dev.
-3. **Metadata.** Per-partition counts and min/max let `COUNT(*)`, `MIN` and `MAX` return without scanning data **(⚠ verify which types and predicates qualify)**.
+3. **Metadata.** Per-partition counts and min/max let `COUNT(*)` return without scanning data or using a warehouse, unless a row access policy forces a scan. `MIN` and `MAX` qualify only for some data types **(⚠ verify which)**.
 
 ### Credit model and editions
 
 - **Warehouse compute:** size rate × seconds running. Usually most of the bill.
 - **Serverless features:** Snowpipe, Automatic Clustering, SOS, MV refresh, serverless tasks and QAS. They never sit idle, but their cost can grow without anyone noticing.
 - **Cloud services:** billed only for the part above **10% of that day's warehouse compute** (computed per UTC day, serverless excluded). Millions of tiny queries or metadata-heavy work can push you over the threshold.
-- **Storage:** per compressed TB per month, averaged daily, including Time Travel and Fail-safe bytes (7 days for permanent tables). Order of magnitude: tens of dollars per TB-month **(⚠ verify for region and contract)**.
+- **Storage:** per compressed TB per month, averaged daily, including Time Travel and Fail-safe bytes (7 days for permanent tables). Order of magnitude: tens of dollars per TB-month ($23 on demand in AWS US regions; capacity contracts get less).
 - **Data transfer:** ingress is free. Egress across regions or clouds, or to the internet, is charged.
 
 | Edition | Adds |
@@ -149,7 +149,7 @@ The Query Profile answers four questions. Shrink bytes scanned first (P4), then 
 - **Auto-suspend too aggressive** means a cold cache on every visit plus repeated 60-second minimums.
 - **Clustering every table "just in case"** wastes serverless credits.
 - **Ad-hoc users on the ETL warehouse** cause queuing and cost that can't be attributed.
-- **Runaway queries** run until the default statement timeout of 2 days **(⚠ verify)** unless you set `STATEMENT_TIMEOUT_IN_SECONDS`.
+- **Runaway queries** run until the default statement timeout of 2 days (172800 seconds) unless you set `STATEMENT_TIMEOUT_IN_SECONDS`.
 - **Guardrails:** resource monitors and budgets ([§13](13-performance-cost.md)).
 
 ## Comparison
@@ -284,3 +284,11 @@ Write amplification. Updating one row rewrites its whole partition, so MERGE-hea
 - https://docs.snowflake.com/en/user-guide/resource-monitors
 - https://docs.snowflake.com/en/user-guide/intro-editions
 - https://docs.snowflake.com/en/user-guide/snowflake-horizon
+- https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf
+- https://docs.snowflake.com/en/release-notes/behavior-changes
+- https://docs.snowflake.com/en/release-notes/bcr-bundles/2026_03/bcr-2269
+- https://docs.snowflake.com/en/sql-reference/parameters
+- https://docs.snowflake.com/en/sql-reference/sql/create-warehouse
+- https://docs.snowflake.com/en/sql-reference/functions/count
+- https://docs.snowflake.com/en/user-guide/ui-snowsight-activity
+- https://docs.snowflake.com/en/user-guide/cost-understanding-data-transfer
