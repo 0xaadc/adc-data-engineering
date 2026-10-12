@@ -32,12 +32,12 @@ PAR1
  4-byte footer length · PAR1
 ```
 
-- **Row group:** a horizontal slice of rows. It's the unit of parallelism and of statistics-based skipping. The spec recommends large row groups (512 MB–1 GB), but most engines write smaller ones.
-- **Column chunk:** one column's values within a row group, stored contiguously. A query that needs 3 of 100 columns reads only those 3 chunks (P1, P4).
-- **Page:** the unit of encoding and compression. Encodings include dictionary, RLE/bit-packing and delta. Compression (Snappy, ZSTD, gzip) runs on top. Same-typed values sitting next to each other compress far better than mixed rows do.
-- **Footer last:** the writer streams data and writes metadata at the end, which allows single-pass writes. A reader fetches the footer first, then range-reads only the chunks it needs. Optional page indexes and bloom filters allow finer-grained skipping.
+- **Row group:** a horizontal slice of rows; the unit of parallelism and of min/max skipping.
+- **Column chunk:** one column's values within a row group, stored contiguously. A query needing 3 of 100 columns range-reads only those chunks (P1, P4).
+- **Page:** the unit of encoding (dictionary, RLE/bit-packing, delta) and compression (Snappy, ZSTD). Same-typed neighbors compress far better than mixed rows.
+- **Footer last:** allows single-pass writes. Readers fetch the footer first, then only the chunks they need.
 
-Parquet is a *file* format. It knows nothing about other files, versions or transactions. That gap is what table formats fill.
+Parquet knows nothing about other files, versions or transactions. That gap is what table formats fill.
 
 ### Delta Lake: an ordered transaction log
 
@@ -55,7 +55,7 @@ _delta_log/
 - **Optimistic concurrency.** A writer reads version N, writes its data files (invisible until committed), then tries to create N+1. If another writer got there first, it checks whether the winning commits conflict with what it read (for example, a file it read was removed). If they don't conflict, it retries as N+2. If they do, it fails.
 - **Checkpoints.** A Parquet snapshot of the replayed state, written every 10 commits by default in OSS, so readers don't replay thousands of JSON files. V2 checkpoints add sidecar files and log compaction for very large logs.
 - **Catalog-managed tables (Preview in Delta 4.0).** The catalog, rather than the filesystem, becomes "the source of truth for whether a given commit attempt succeeded." This is Delta moving toward the Iceberg model of catalog arbitration.
-- **Table features.** `readerFeatures` and `writerFeatures` (deletion vectors, column mapping, row tracking, variant, type widening, icebergCompat) gate which clients may touch the table. Enabling a feature can lock out older readers.
+- **Table features** (deletion vectors, column mapping, row tracking, variant, type widening, icebergCompat) gate which clients may read or write. Enabling one can lock out older readers.
 
 ### Apache Iceberg: a metadata tree with a catalog pointer
 
@@ -107,13 +107,7 @@ Rule of thumb: frequent small updates favor MOR or DVs. Read-heavy tables with r
 
 ### Time travel and cleanup
 
-Time travel is free because old files and old metadata remain on storage (P3). It is bounded by cleanup:
-
-- **Delta:** `VACUUM` deletes unreferenced files (default retention 7 days). Log retention is 30 days.
-- **Iceberg:** `expire_snapshots`, `remove_orphan_files`, `rewrite_data_files`, `rewrite_manifests`.
-- **Hudi:** cleaning, archival, compaction and clustering.
-
-**Small files** come from streaming and frequent commits. They inflate metadata and per-file overhead, so compaction (`OPTIMIZE`, `rewrite_data_files`) is routine maintenance, not an optional extra.
+Time travel is free because old files and metadata stay on storage (P3), and it is bounded only by cleanup: Delta `VACUUM` (default file retention 7 days, log retention 30 days), Iceberg `expire_snapshots` / `remove_orphan_files`, Hudi cleaning and archival. **Small files** from streaming and frequent commits inflate metadata and per-file overhead, so compaction (`OPTIMIZE`, `rewrite_data_files`, Hudi compaction/clustering) is routine maintenance, not an extra.
 
 ### Catalogs: the pointer and the policy
 
