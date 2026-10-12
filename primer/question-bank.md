@@ -552,56 +552,56 @@ Data originates in OLTP systems, and moving it between write-optimized and read-
 <details>
 <summary><b>Q: Streaming table or materialized view: how do you choose?</b></summary>
 
-A streaming table processes each source record once, using a checkpoint. That makes it cheap and right for append-only ingestion, but a late correction upstream is not reprocessed. A materialized view keeps a query result correct as inputs change, which suits joins, aggregations and data with updates or deletes. It costs more per refresh when it can't update incrementally. I use streaming tables at bronze and MVs above that. If a streaming source starts receiving updates, I switch that step to AUTO CDC or an MV.
+A streaming table processes each source record once using a checkpoint. That makes it cheap and right for append-only ingestion, but it won't reprocess an upstream correction. A materialized view keeps a query result correct as its inputs change, which suits joins, aggregations and sources with updates or deletes. The cost is a more expensive refresh when it can't be incremental. I use streaming tables at bronze and MVs above that. When a streaming source starts receiving updates, I switch that step to AUTO CDC or an MV.
 
 </details>
 
 <details>
 <summary><b>Q: Why liquid clustering over partitioning plus Z-order? When would you still partition?</b></summary>
 
-Partitioning fixes the layout in directory names at write time. A wrong or high-cardinality key causes small files and skew, and changing it means rewriting the table. Z-order rewrote whole partitions on every `OPTIMIZE`. Liquid clustering keeps keys in metadata, clusters incrementally, and lets you change keys without a rewrite. I would still partition only very large tables with a low-cardinality key that every query filters on and that never changes, such as date when retention is managed by dropping old partitions.
+Partitioning fixes the data layout in directory names at write time. A wrong or high-cardinality key causes small files and skew, and changing it means rewriting the table. Z-order rewrote whole partitions on every `OPTIMIZE`. Liquid clustering keeps keys in metadata, clusters incrementally, and lets you change keys without a rewrite. I'd still partition only a very large table with a stable, low-cardinality key that every query filters on, such as a date used to drop old data.
 
 </details>
 
 <details>
 <summary><b>Q: When doesn't Photon help?</b></summary>
 
-Photon speeds up columnar operators: scans, joins, aggregations and writes. It does nothing for Python or pandas UDFs, RDD code, I/O- or network-bound jobs, or very short queries, because it falls back to Spark or the bottleneck is elsewhere. On classic compute it bills at a higher DBU rate. The test is cost per job with Photon on versus off, not runtime alone.
+Photon speeds up columnar operators: scans, joins, aggregations and writes. It does nothing for Python or pandas UDFs, RDD code, I/O-bound jobs or very short queries, either because it falls back to Spark or because the bottleneck is elsewhere. On classic compute it bills a higher DBU rate. So the real test is cost per job with Photon on and off.
 
 </details>
 
 <details>
 <summary><b>Q: Serverless or classic compute?</b></summary>
 
-Serverless removes cluster management, starts in seconds and auto-upgrades the runtime, which is the right default for SQL, ad hoc notebooks and most jobs (P10). Classic still wins when you need specific instance types or GPUs, Spark configs that serverless doesn't allow, custom networking that must stay in your account, or spot pricing for large, steady jobs. The risk with serverless is cost visibility, so watch the billing system tables and set budget policies.
+Serverless removes cluster management, starts in seconds and upgrades itself, which makes it the right default for SQL, notebooks and most jobs (P10). Classic still wins when you need specific instance types or GPUs, Spark configs that serverless blocks, compute that must stay inside your network, or spot pricing for large steady jobs. The risk with serverless is cost visibility. Watch the billing system tables and set budget policies.
 
 </details>
 
 <details>
 <summary><b>Q: How do system tables support FinOps and governance?</b></summary>
 
-They expose usage, prices, audit logs, lineage and query history as queryable Delta tables. Joining `system.billing.usage` to list prices and custom tags gives cost by team, job or project, so you can do chargeback and catch idle clusters. Audit and lineage tables show who accessed which data and what is downstream of a change. The prerequisite is a tagging discipline: costs that aren't tagged can't be attributed.
+They expose usage, prices, audit logs, lineage and query history as queryable Delta tables. Joining usage to list prices and custom tags gives cost by team, job or project, which supports chargeback and catches idle compute. Audit and lineage tables show who accessed what and what sits downstream of a change. The prerequisite is tagging discipline, because untagged spend can't be attributed.
 
 </details>
 
 <details>
 <summary><b>Q: How does Delta Sharing work, and how would you share with a Snowflake account?</b></summary>
 
-The sharing server authorizes the recipient and returns short-lived pre-signed URLs to the table's files. The recipient reads straight from storage with its own compute, and the provider just stays the source of truth. Between Databricks workspaces I'd use Databricks-to-Databricks sharing. For Snowflake I'd use open sharing, which Snowflake now consumes natively as a catalog-linked database. Check the table-feature constraints on the provider side (UniForm, deletion vectors) and plan for token expiry and rotation.
+The sharing server authorizes the recipient and returns short-lived pre-signed URLs. The recipient reads the files directly with its own compute, and the provider remains the single source of truth. Between workspaces I'd use Databricks-to-Databricks sharing. For Snowflake I'd use open sharing, which Snowflake now consumes natively as a catalog-linked database. Check the provider-side table-feature constraints, such as UniForm and deletion vectors, and plan for token expiry.
 
 </details>
 
 <details>
 <summary><b>Q: Why use Declarative Automation Bundles instead of building in the UI?</b></summary>
 
-Jobs, pipelines and dashboards created by clicking drift between environments, can't be code-reviewed, and can't be recreated after a mistake. A bundle declares them as YAML next to the code, so CI/CD deploys the same definition to dev, staging and prod, with parameters for each target. That makes deployments repeatable (P6) and puts changes through the same review as code.
+Jobs, pipelines and dashboards created by clicking drift between environments, can't be code-reviewed and are hard to recreate. A bundle declares them as YAML next to the code, so CI/CD deploys the same definition to dev, staging and prod with per-target parameters. That makes deployments repeatable (P6), and changes go through the same review as code.
 
 </details>
 
 <details>
 <summary><b>Q: Why put Postgres (Lakebase) inside a lakehouse, and when wouldn't you?</b></summary>
 
-Applications need fast single-row reads and writes, which columnar tables are bad at (P1). A separate OLTP database plus reverse ETL adds a pipeline, a copy and a second governance model. Lakebase separates storage and compute to get autoscaling, scale-to-zero and instant branches, and it sits under the same platform governance. I wouldn't move a high-throughput core system of record there until its HA, latency and operational track record meet our SLAs.
+Apps need fast single-row reads and writes, which columnar tables handle poorly (P1). A separate OLTP database plus reverse ETL adds a pipeline, a copy and another governance model. Lakebase separates storage from compute to get autoscaling, scale-to-zero and instant branches, all under platform governance. I wouldn't move a high-throughput core system of record there until its HA and operational track record meet our SLAs.
 
 </details>
 
@@ -789,91 +789,91 @@ Buy connectors for commoditized SaaS and standard databases. API churn and schem
 <details>
 <summary><b>Q: Can you explain Kafka to me as if I'm a DBA?</b></summary>
 
-Kafka is your redo log or WAL, pulled out of the database and turned into a shared, durable service. Applications append events in order. Any number of readers tail the log from their own position, much as a replica replays the log, and each reader can rewind. Partitions hash-partition the log for parallelism, so order holds within a partition but not across partitions. Kafka isn't a query engine: you derive tables from it rather than query it (P5).
+It's your WAL pulled out of the database and turned into a shared, durable service. Applications append events in order, and any number of readers tail the log from their own position and can rewind, the way a replica replays the log. Partitions hash-partition the log for parallelism, so order holds within a partition but not across partitions. It isn't a query engine. You derive tables from it (P5).
 
 </details>
 
 <details>
 <summary><b>Q: How does Kafka guarantee ordering?</b></summary>
 
-Only within a partition. The producer routes by `hash(key)`, so per-key order holds if three things are true: the key is the entity that needs ordering, the idempotent producer prevents retries from reordering, and the partition count never changes. Global order requires a single partition and therefore a single consumer, so design so you don't need it. Parallel consumer threads or out-of-order sink writes can still break ordering downstream, so carry a version and apply only newer values.
+Only within a partition. Records are routed by `hash(key)`, so per-key order holds as long as three things are true: the key is the entity you need ordered, the idempotent producer keeps retries from reordering, and the partition count never changes. Global ordering requires a single partition and a single consumer, so design so you don't need it. Parallel consumer threads or sinks that write out of order can still break ordering, so carry a version and apply only newer changes.
 
 </details>
 
 <details>
 <summary><b>Q: How many partitions should a topic have?</b></summary>
 
-Size it to the larger of two numbers: target throughput divided by measured per-partition throughput (check both producer and slowest consumer), and the maximum consumer parallelism you'll need. Then add growth headroom, because adding partitions to a keyed topic later remaps keys. Don't overshoot either, since each partition costs memory, replication, recovery time and batch efficiency. Most topics need tens of partitions. Strict global order at low volume means one.
+Take the larger of two numbers: target throughput divided by measured per-partition throughput (for both the producer and the slowest consumer), or the maximum consumer parallelism you need. Add growth headroom, because adding partitions to a keyed topic remaps keys. Don't overshoot, since every partition costs memory, replication and recovery time. For most topics that comes out in the tens.
 
 </details>
 
 <details>
 <summary><b>Q: What happens when a consumer in a group dies?</b></summary>
 
-It stops heartbeating, so after `session.timeout.ms` the coordinator reassigns its partitions. The new owners resume from the last committed offset, so any work done but not yet committed is redone. That's at-least-once, which is why sinks must be idempotent. Eager rebalancing pauses everyone, while cooperative assignment and KIP-848 move only the dead member's partitions. A live but slow consumer that exceeds `max.poll.interval.ms` is evicted the same way, which is a classic cause of rebalance storms.
+After `session.timeout.ms` with no heartbeat, the coordinator reassigns its partitions. The new owners resume from the last committed offset, so any processed but uncommitted work is redone. That's at-least-once delivery, which is why sinks must be idempotent. Eager rebalancing pauses every consumer, while cooperative assignment and KIP-848 move only the dead member's partitions. A consumer that is alive but slower than `max.poll.interval.ms` gets evicted the same way, which is a classic cause of rebalance storms.
 
 </details>
 
 <details>
 <summary><b>Q: acks=all with min.insync.replicas=2 and RF=3: what failures can you survive?</b></summary>
 
-You can lose one broker, or one zone if replicas are placed rack-aware. Leadership moves to an in-sync follower, writes continue, and no acknowledged record is lost because each one was on at least two replicas. Lose two brokers and writes stop with `NotEnoughReplicas`, but acknowledged data survives and stays readable. Enabling unclean election would trade that durability for availability. None of this protects against bad writes, deletes or a regional outage: those need cross-cluster replication and backups.
+You can lose one broker (or one zone, with rack-aware placement): leadership fails over, writes continue, and no acknowledged record is lost because each one was on at least two replicas. Lose two brokers and writes stop with `NotEnoughReplicas`, but the acknowledged data survives and can still be read. Turning on unclean election would trade that durability for availability. None of this protects against bad writes or a regional outage. Those need cross-cluster replication and backups.
 
 </details>
 
 <details>
 <summary><b>Q: At-least-once vs exactly-once: how does Kafka implement EOS and what are its limits?</b></summary>
 
-At-least-once means process, then commit. A crash replays the uncommitted records, giving duplicates but no loss, and it's the sane default. EOS combines three pieces: the idempotent producer (a producer ID plus sequence numbers dedupes retries), transactions (outputs and input offsets committed atomically, with zombie fencing), and `read_committed` consumers. Its limits: it only covers Kafka-to-Kafka processing, external side effects fall outside it, it adds latency, and consumers left on the default `read_uncommitted` see aborted data. End to end, use idempotent sinks (P6, [§11](11-stream-processing.md)).
+At-least-once means process, then commit: you get duplicates after a crash but never loss, and it's the sane default. EOS combines three pieces: the idempotent producer (producer ID plus sequence numbers), transactions that commit outputs and input offsets atomically and fence zombie producers, and `read_committed` consumers. The limits are that it covers only Kafka-to-Kafka processing, external side effects fall outside it, and it adds latency. End-to-end correctness still needs idempotent sinks (P6, [§11](11-stream-processing.md)).
 
 </details>
 
 <details>
 <summary><b>Q: Log compaction: when and why?</b></summary>
 
-Use it when a topic represents current state by key rather than history: table CDC, reference data, configuration, state-store changelogs. A new consumer can rebuild the full table by replaying from offset 0 without infinite retention, and tombstones propagate deletes. Don't use it where every event matters, such as clicks or payments, and don't treat it as dedupe, because the active segment isn't compacted. Tiered storage excludes compacted topics, so size local disks for them.
+Use compaction when a topic holds current state by key rather than history: table CDC, reference data, configuration, state-store changelogs. A new consumer can rebuild the whole table by replaying from offset 0 without infinite retention, and tombstones carry deletes. Don't use it where every event matters, and don't treat it as dedupe, because the active segment is never compacted. Tiered storage excludes compacted topics.
 
 </details>
 
 <details>
 <summary><b>Q: How do you handle schema evolution?</b></summary>
 
-Treat the schema as a contract the producer owns (P8). Keep Avro or Protobuf schemas in a registry, set compatibility per subject, and check it in CI. BACKWARD means consumers upgrade first, FORWARD means producers do, and FULL allows either order, which suits widely shared topics. Additive changes with defaults are safe. Renames and type changes are breaking, so add a new field or a versioned topic and dual-publish during migration. Propagate changes into Delta deliberately rather than auto-merging everything.
+Treat the schema as a contract owned by the producer (P8). That means Avro or Protobuf in a registry, compatibility set per subject, and checks in CI. BACKWARD means consumers deploy first, FORWARD means producers deploy first, and FULL allows either order, which is the right choice for widely shared topics. For breaking changes such as renames or type changes, add a new field or a versioned topic and dual-publish during the migration.
 
 </details>
 
 <details>
 <summary><b>Q: How would you do CDC from Postgres into the lakehouse?</b></summary>
 
-Run Debezium on `pgoutput` with a replication slot: snapshot first, then stream the WAL into one topic per table, keyed by primary key, in Avro. Land raw change events append-only in bronze for replay and audit. Then `MERGE` into silver by primary key, ordered by LSN, applying deletes ([§11](11-stream-processing.md)). Watch three risks: a stalled slot pins WAL and can fill the primary's disk, replica identity determines how complete `before` images are, and source DDL needs a change process. If minutes of latency are fine and nothing else consumes the stream, managed CDC straight to files is simpler (P7, P10).
+Run Debezium with `pgoutput` and a replication slot: it takes a snapshot, then streams the WAL into one topic per table, keyed by primary key, as Avro. Land the raw change events append-only in bronze, then `MERGE` into silver by key, ordered by LSN, applying deletes ([§11](11-stream-processing.md)). The main risk is a stalled slot pinning WAL and filling the primary's disk, so alert on slot lag. If minutes of latency are fine and nothing else consumes the stream, managed CDC straight to files is simpler (P7, P10).
 
 </details>
 
 <details>
 <summary><b>Q: What's the outbox pattern?</b></summary>
 
-It solves dual writes. A service can't atomically update its database and publish to Kafka, so a crash between the two leaves them disagreeing. Instead, the service writes the business change and an outbox event row in one local transaction. CDC then publishes the committed outbox rows, keyed by aggregate ID so each entity's events stay ordered. Atomicity comes from the database, publishing is at-least-once, and consumers dedupe on event ID. The cost is an outbox table to prune plus CDC infrastructure.
+It solves the dual-write problem: a service can't atomically update its database and publish to Kafka. Instead, it writes the business change and an outbox event row in one local transaction, and CDC publishes the committed outbox rows keyed by aggregate ID. Atomicity comes from the database. Publishing is at-least-once, so consumers deduplicate on event ID. The cost is an outbox table to prune and CDC infrastructure to run.
 
 </details>
 
 <details>
 <summary><b>Q: Kafka vs Event Hubs vs Kinesis: how do you choose?</b></summary>
 
-Start from the cloud and the team (P10). Event Hubs is Azure-native: a Kafka endpoint with no brokers, plus Capture to ADLS. In exchange, partitions and retention are capped by tier (90 days maximum), you can't tune brokers, and newer Kafka features lag. Kinesis is AWS-native with Lambda and Firehose integration, but it has its own API and per-shard limits. Pick Kafka (MSK, Confluent or self-run) when you need Connect, transactions, compaction, long or tiered retention, or portability, and prefer managed unless you have a platform team.
+Start from the cloud and the team (P10). Event Hubs is Azure-native and gives you a Kafka endpoint with no brokers to run, but partitions and retention are capped by tier, you can't tune brokers, and newer Kafka features arrive late. Kinesis is AWS-native with tight Lambda and Firehose integration, but it has its own API and per-shard limits. Pick Kafka (MSK, Confluent or self-run) when you need Connect, transactions, compaction, long retention or portability, and prefer a managed service unless you have a platform team.
 
 </details>
 
 <details>
 <summary><b>Q: Consumer lag is growing. How do you diagnose it?</b></summary>
 
-First check whether it's a few partitions or all of them. A few points to a hot key or a stuck consumer (poison pill, hung thread). All of them points to a throughput mismatch. Then look at rebalance metrics, consumer CPU, and the sink: slow DB writes or many tiny file commits are the most common cause. Fix by scaling consumers up to the partition count, batching sink writes, rekeying, and sending poison pills to a DLQ. Add partitions only if parallelism really is the ceiling. Report lag in seconds against the freshness SLA (P7).
+First ask whether the lag is on a few partitions (hot key, poison pill, hung consumer) or on all of them (a throughput mismatch). Then check rebalance metrics, consumer CPU and the sink. Slow database writes or tiny file commits are the most common cause. Fix by scaling up to the partition count, batching sink writes, rekeying, or sending poison pills to a DLQ. Add partitions only if parallelism is genuinely the ceiling, and judge lag in seconds against the freshness SLA (P7).
 
 </details>
 
 <details>
 <summary><b>Q: Why did Kafka drop ZooKeeper, and what changes for you?</b></summary>
 
-ZooKeeper was a second distributed system to run and secure, and its controller model made failover slow and capped partition counts. KRaft makes metadata a Raft-replicated internal log on a controller quorum. That gives faster failover, more partitions and one system to operate. Since 4.0 KRaft is the only mode, so you migrate ZooKeeper clusters on 3.x (3.9 is the bridge) before upgrading. On managed services the change is mostly invisible.
+ZooKeeper was a second distributed system to run and secure, and controller failover through it was slow, which capped partition counts. KRaft stores metadata in a Raft-replicated internal log on a controller quorum, giving faster failover, more partitions and one system to operate. Since 4.0, KRaft is the only mode, so ZooKeeper clusters must migrate on 3.x (3.9 is the bridge) before upgrading.
 
 </details>
 
