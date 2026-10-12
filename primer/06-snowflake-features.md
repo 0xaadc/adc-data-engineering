@@ -141,13 +141,13 @@ Horizon is the umbrella for masking policies, row access policies, object tags w
 ### Convergence: OLTP and ingestion
 
 **Why (P1):** every pipeline ends in the warehouse, and the costly, fragile hops are getting data in from operational systems and back out to applications. Owning those hops removes third-party tools and gives AI apps low-latency state next to governed analytics.
-- **Hybrid tables (Unistore):** a row store with a required primary key, enforced constraints, secondary indexes and row-level locking, built for point lookups and small transactions. **(GA on AWS since October 2024; Azure ⚠ verify.)** It is not a high-throughput OLTP engine.
+- **Hybrid tables (Unistore):** a row store with a required primary key, enforced constraints, secondary indexes and row-level locking, built for point lookups and small transactions. **(GA on AWS since October 2024 and on Azure since October 2025.)** It is not a high-throughput OLTP engine.
 - **Snowflake Postgres (GA, February 2026, selected AWS and Azure regions):** real managed PostgreSQL on dedicated VMs, building on the 2025 Crunchy Data acquisition. **Databricks:** Lakebase.
-- **Openflow:** managed ingestion built on Apache NiFi, with connectors for SaaS, CDC, Kafka and unstructured data. **(GA May 2025 for BYOC; Snowflake-hosted SPCS deployments entered Preview September 2025, current status ⚠ verify.)** **Databricks:** Lakeflow Connect.
+- **Openflow:** managed ingestion built on Apache NiFi, with connectors for SaaS, CDC, Kafka and unstructured data. **(GA May 2025 for BYOC; Snowflake Deployments on SPCS GA November 2025.)** **Databricks:** Lakeflow Connect.
 
 ### Replication and business continuity
 
-**Replication groups** incrementally copy databases, shares and account objects to other regions or clouds. **Failover groups** (Business Critical and above) promote a secondary account. **Client Redirect** repoints clients through a connection URL. RPO is roughly the replication interval, and RTO is promotion plus redirect. **Databricks:** there is no native account failover. See [§14](14-reliability-dataops.md).
+**Replication groups** incrementally copy databases, shares and account objects to other regions or clouds. **Failover groups** (Business Critical and above) promote a secondary account. **Client Redirect** (also Business Critical) repoints clients through a connection URL. Database and share replication work on all editions; account-object replication needs Business Critical. RPO is roughly the replication interval, and RTO is promotion plus redirect. **Databricks:** managed disaster recovery (Preview since June 2026, gated) replicates Unity Catalog metadata, managed tables and workspace assets behind a stable URL; otherwise DR is DIY. See [§14](14-reliability-dataops.md).
 
 ## Comparison
 
@@ -245,24 +245,36 @@ Data originates in OLTP systems, and moving it between write-optimized and read-
 
 ## Sources
 - https://docs.snowflake.com/en/user-guide/data-time-travel
-- https://docs.snowflake.com/ja/user-guide/tables-temp-transient
+- https://docs.snowflake.com/en/user-guide/tables-temp-transient
+- https://docs.snowflake.com/en/user-guide/data-failsafe
+- https://docs.snowflake.com/en/sql-reference/info-schema/table_storage_metrics
+- https://docs.snowflake.com/en/sql-reference/parameters
 - https://docs.snowflake.com/en/user-guide/object-clone
 - https://docs.snowflake.com/sql-reference/sql/create-clone
 - https://docs.snowflake.com/en/sql-reference/account-usage/streams
+- https://docs.snowflake.com/en/user-guide/streams-intro
 - https://docs.snowflake.com/en/user-guide/tasks-triggered
+- https://docs.snowflake.com/en/sql-reference/sql/create-task
 - https://docs.snowflake.com/release-notes/2024/8_27
 - https://docs.snowflake.com/sql-reference/sql/create-dynamic-table
 - https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh
 - https://docs.snowflake.com/en/user-guide/dynamic-tables/migrate-streams-tasks
 - https://docs.snowflake.com/user-guide/dynamic-tables-best-practices
+- https://docs.snowflake.com/en/user-guide/views-materialized
 - https://docs.snowflake.com/user-guide/data-load-considerations-load
 - https://docs.snowflake.com/en/user-guide/data-load-considerations-prepare
+- https://docs.snowflake.com/en/user-guide/data-load-snowpipe-intro
 - https://docs.snowflake.com/user-guide/data-load-snowpipe-manage
 - https://docs.snowflake.com/user-guide/snowpipe-streaming-high-performance-overview
+- https://docs.snowflake.com/en/user-guide/snowpipe-streaming/data-load-snowpipe-streaming-overview
+- https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-classic-deprecation
 - https://docs.snowflake.com/en/release-notes/2025/other/2025-09-23-snowpipe-streaming-high-performance-architecture
+- https://docs.snowflake.com/en/release-notes/2025/other/2025-11-05-snowpipe-streaming-azure-ga
 - https://docs.snowflake.com/release-notes/2025/other/2025-11-10-snowpipe-streaming-gcp-ga
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-09-15-snowpipe-streaming-elastic-channels-ga
 - https://docs.snowflake.com/en/connectors/kafkahp/about
-- https://docs.snowflake.com/ko/release-notes/2026/other/2026-04-20-kafka-connector-v4-ga
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-04-20-kafka-connector-v4-ga
+- https://docs.databricks.com/aws/en/ingestion/zerobus-release-stages
 - https://docs.snowflake.com/en/user-guide/tables-iceberg-catalog-linked-database
 - https://docs.snowflake.com/release-notes/2025/other/2025-10-17-iceberg-external-writes-cld-ga
 - https://docs.snowflake.com/en/user-guide/tables-iceberg-query-using-external-query-engine-snowflake-horizon
