@@ -789,91 +789,91 @@ Buy connectors for commoditized SaaS and standard databases. API churn and schem
 <details>
 <summary><b>Q: Can you explain Kafka to me as if I'm a DBA?</b></summary>
 
-It's your WAL pulled out of the database and turned into a shared, durable service. Applications append events in order, and any number of readers tail the log from their own position and can rewind, the way a replica replays the log. Partitions hash-partition the log for parallelism, so order holds within a partition but not across partitions. It isn't a query engine. You derive tables from it (P5).
+Kafka is the database's WAL taken out of the database and turned into a shared, durable service. Applications append events in order. Any number of readers tail it from their own positions and can rewind, the way a replica replays a log. Partitions hash-partition the log for parallelism, so order holds within a partition but not across partitions. It isn't a query engine. You derive tables from it (P5).
 
 </details>
 
 <details>
 <summary><b>Q: How does Kafka guarantee ordering?</b></summary>
 
-Only within a partition. Records are routed by `hash(key)`, so per-key order holds as long as three things are true: the key is the entity you need ordered, the idempotent producer keeps retries from reordering, and the partition count never changes. Global ordering requires a single partition and a single consumer, so design so you don't need it. Parallel consumer threads or sinks that write out of order can still break ordering, so carry a version and apply only newer changes.
+Only within a partition. Records route by `hash(key)`, so per-key order holds when three things are true: the key is the entity that needs ordering, idempotence prevents retries from reordering, and the partition count never changes. Global order requires a single partition and therefore a single consumer, so design so you don't need it. Parallel consumer threads can still reorder events, so carry a version field and apply only newer changes.
 
 </details>
 
 <details>
 <summary><b>Q: How many partitions should a topic have?</b></summary>
 
-Take the larger of two numbers: target throughput divided by measured per-partition throughput (for both the producer and the slowest consumer), or the maximum consumer parallelism you need. Add growth headroom, because adding partitions to a keyed topic remaps keys. Don't overshoot, since every partition costs memory, replication and recovery time. For most topics that comes out in the tens.
+Use the larger of two numbers: target throughput divided by measured per-partition throughput (check the producer and the slowest consumer), or the maximum consumer parallelism you'll need. Add growth headroom, because adding partitions to a keyed topic later remaps keys. Don't overshoot either, since each partition costs memory, replication and recovery time. Most topics land in the tens.
 
 </details>
 
 <details>
 <summary><b>Q: What happens when a consumer in a group dies?</b></summary>
 
-After `session.timeout.ms` with no heartbeat, the coordinator reassigns its partitions. The new owners resume from the last committed offset, so any processed but uncommitted work is redone. That's at-least-once delivery, which is why sinks must be idempotent. Eager rebalancing pauses every consumer, while cooperative assignment and KIP-848 move only the dead member's partitions. A consumer that is alive but slower than `max.poll.interval.ms` gets evicted the same way, which is a classic cause of rebalance storms.
+Once `session.timeout.ms` passes without a heartbeat, the coordinator reassigns its partitions. The new owner resumes from the last committed offset, so any uncommitted work is redone. That's at-least-once delivery, so sinks must be idempotent. Eager rebalancing pauses the whole group; cooperative assignment and KIP-848 move only the dead member's partitions. A consumer that's alive but slower than `max.poll.interval.ms` gets evicted the same way, which is a classic cause of rebalance storms.
 
 </details>
 
 <details>
 <summary><b>Q: acks=all with min.insync.replicas=2 and RF=3: what failures can you survive?</b></summary>
 
-You can lose one broker (or one zone, with rack-aware placement): leadership fails over, writes continue, and no acknowledged record is lost because each one was on at least two replicas. Lose two brokers and writes stop with `NotEnoughReplicas`, but the acknowledged data survives and can still be read. Turning on unclean election would trade that durability for availability. None of this protects against bad writes or a regional outage. Those need cross-cluster replication and backups.
+One broker, or one zone if replicas are rack-aware. Leadership fails over, writes continue, and nothing acknowledged is lost, because every acknowledged record was on at least two replicas. With two brokers down, writes stop (`NotEnoughReplicas`), but acknowledged data survives and is still readable. Unclean election would trade that durability for availability. Bad writes and regional outages need cross-cluster replication and backups.
 
 </details>
 
 <details>
 <summary><b>Q: At-least-once vs exactly-once: how does Kafka implement EOS and what are its limits?</b></summary>
 
-At-least-once means process, then commit: you get duplicates after a crash but never loss, and it's the sane default. EOS combines three pieces: the idempotent producer (producer ID plus sequence numbers), transactions that commit outputs and input offsets atomically and fence zombie producers, and `read_committed` consumers. The limits are that it covers only Kafka-to-Kafka processing, external side effects fall outside it, and it adds latency. End-to-end correctness still needs idempotent sinks (P6, [§11](11-stream-processing.md)).
+At-least-once means process, then commit. A crash causes duplicates but never loss, and that's the sane default. EOS combines three pieces: the idempotent producer (a producer ID plus sequence numbers), transactions that atomically commit outputs together with input offsets and fence zombies, and `read_committed` consumers. Its limits: it covers Kafka-to-Kafka processing only, external side effects fall outside it, and it adds latency. End to end, you still need idempotent sinks (P6, [§11](11-stream-processing.md)).
 
 </details>
 
 <details>
 <summary><b>Q: Log compaction: when and why?</b></summary>
 
-Use compaction when a topic holds current state by key rather than history: table CDC, reference data, configuration, state-store changelogs. A new consumer can rebuild the whole table by replaying from offset 0 without infinite retention, and tombstones carry deletes. Don't use it where every event matters, and don't treat it as dedupe, because the active segment is never compacted. Tiered storage excludes compacted topics.
+Use it when a topic holds the current state per key rather than a history: table CDC, reference data, config, or state-store changelogs. A new consumer rebuilds the whole table by replaying from offset 0 without needing infinite retention, and tombstones carry deletes. Don't use it where every event matters. Don't treat it as dedupe either, because the active segment isn't compacted. Tiered storage also excludes compacted topics.
 
 </details>
 
 <details>
 <summary><b>Q: How do you handle schema evolution?</b></summary>
 
-Treat the schema as a contract owned by the producer (P8). That means Avro or Protobuf in a registry, compatibility set per subject, and checks in CI. BACKWARD means consumers deploy first, FORWARD means producers deploy first, and FULL allows either order, which is the right choice for widely shared topics. For breaking changes such as renames or type changes, add a new field or a versioned topic and dual-publish during the migration.
+Treat the schema as a contract the producer owns (P8): Avro or Protobuf in a registry, compatibility set per subject, checks in CI. BACKWARD means you deploy consumers first, FORWARD means producers first, and FULL allows either order, which suits widely shared topics. For breaking changes such as renames or type changes, add a new field or a versioned topic and dual-publish during migration.
 
 </details>
 
 <details>
 <summary><b>Q: How would you do CDC from Postgres into the lakehouse?</b></summary>
 
-Run Debezium with `pgoutput` and a replication slot: it takes a snapshot, then streams the WAL into one topic per table, keyed by primary key, as Avro. Land the raw change events append-only in bronze, then `MERGE` into silver by key, ordered by LSN, applying deletes ([§11](11-stream-processing.md)). The main risk is a stalled slot pinning WAL and filling the primary's disk, so alert on slot lag. If minutes of latency are fine and nothing else consumes the stream, managed CDC straight to files is simpler (P7, P10).
+I'd use Debezium with `pgoutput` and a replication slot. It takes a snapshot and then streams the WAL to one topic per table, keyed by primary key, in Avro. Land the raw events append-only in bronze, then `MERGE` into silver by key in LSN order, applying deletes ([§11](11-stream-processing.md)). The main risk is a stalled slot pinning WAL and filling the primary's disk, so alert on slot lag. If minutes of latency are acceptable and nothing else consumes the stream, managed CDC to files is simpler (P7, P10).
 
 </details>
 
 <details>
 <summary><b>Q: What's the outbox pattern?</b></summary>
 
-It solves the dual-write problem: a service can't atomically update its database and publish to Kafka. Instead, it writes the business change and an outbox event row in one local transaction, and CDC publishes the committed outbox rows keyed by aggregate ID. Atomicity comes from the database. Publishing is at-least-once, so consumers deduplicate on event ID. The cost is an outbox table to prune and CDC infrastructure to run.
+It solves dual writes, because a service can't atomically update its database and publish to Kafka. The service writes the business change and an outbox event row in one local transaction. CDC then publishes the committed outbox rows, keyed by aggregate ID. The database provides atomicity; publishing is at-least-once, so consumers dedupe on event ID. The cost is an outbox table to prune and CDC infrastructure to run.
 
 </details>
 
 <details>
 <summary><b>Q: Kafka vs Event Hubs vs Kinesis: how do you choose?</b></summary>
 
-Start from the cloud and the team (P10). Event Hubs is Azure-native and gives you a Kafka endpoint with no brokers to run, but partitions and retention are capped by tier, you can't tune brokers, and newer Kafka features arrive late. Kinesis is AWS-native with tight Lambda and Firehose integration, but it has its own API and per-shard limits. Pick Kafka (MSK, Confluent or self-run) when you need Connect, transactions, compaction, long retention or portability, and prefer a managed service unless you have a platform team.
+Start from the cloud and the team (P10). Event Hubs is Azure-native and gives you a Kafka endpoint with no brokers, but partitions and retention are tier-capped, you can't tune brokers, and newer Kafka features lag. Kinesis is AWS-native and integrates with Lambda and Firehose, but it has its own API and per-shard limits. Choose Kafka (MSK, Confluent or self-run) for Connect, transactions, compaction, long retention or portability. Prefer managed Kafka unless you have a platform team.
 
 </details>
 
 <details>
 <summary><b>Q: Consumer lag is growing. How do you diagnose it?</b></summary>
 
-First ask whether the lag is on a few partitions (hot key, poison pill, hung consumer) or on all of them (a throughput mismatch). Then check rebalance metrics, consumer CPU and the sink. Slow database writes or tiny file commits are the most common cause. Fix by scaling up to the partition count, batching sink writes, rekeying, or sending poison pills to a DLQ. Add partitions only if parallelism is genuinely the ceiling, and judge lag in seconds against the freshness SLA (P7).
+First check whether it's a few partitions (a hot key, a poison pill or a hung consumer) or all of them (a throughput mismatch). Then check rebalances, consumer CPU and the sink. Slow database writes or tiny file commits are the most common cause. Fix it by scaling to the partition count, batching sink writes, rekeying, or sending poison pills to a DLQ. Add partitions only if parallelism really is the ceiling, and judge lag in seconds against the freshness SLA (P7).
 
 </details>
 
 <details>
 <summary><b>Q: Why did Kafka drop ZooKeeper, and what changes for you?</b></summary>
 
-ZooKeeper was a second distributed system to run and secure, and controller failover through it was slow, which capped partition counts. KRaft stores metadata in a Raft-replicated internal log on a controller quorum, giving faster failover, more partitions and one system to operate. Since 4.0, KRaft is the only mode, so ZooKeeper clusters must migrate on 3.x (3.9 is the bridge) before upgrading.
+ZooKeeper was a second distributed system to run and secure, and controller failover through it was slow, which capped partition counts. KRaft keeps metadata in a Raft-replicated internal log on a controller quorum. That gives faster failover, more partitions and a single system to operate. From 4.0 KRaft is the only mode, so migrate ZooKeeper clusters on 3.x (3.9 is the bridge release) before upgrading.
 
 </details>
 
