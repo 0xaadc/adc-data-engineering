@@ -11,6 +11,6 @@ Most interview prep is a list of facts to memorize. This primer starts from elev
 - [Why X over Y](primer/15-why-x-over-y.md): the tradeoff bank
 - [Cheat Sheet](primer/cheat-sheet.md) · [Question Bank](primer/question-bank.md) (self-test)
 
-Content is current as of October 2026. Vendor features change quickly; anything not confirmed against official documentation is tagged **(⚠ verify)**.
+Content is current as of October 2026 and was fact-checked against official vendor documentation (Snowflake, Databricks, Apache Kafka/Spark/Flink/Iceberg/Delta, Confluent, Microsoft, AWS) on 2026-10-12. Vendor features change quickly; the few claims that couldn't be confirmed are tagged **(⚠ verify)**.
 
 Licensed under the terms in [LICENSE](LICENSE).

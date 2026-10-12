@@ -273,7 +273,7 @@ The writer creates all new data and metadata files, which nobody can see yet, an
 <details>
 <summary><b>Q: How does Delta commit on object storage, and why was S3 a problem?</b></summary>
 
-A commit is the creation of the next numbered JSON file in `_delta_log`, and it must fail if that file already exists. S3 didn't originally offer put-if-absent, so two clusters could both "win" version N+1. OSS Delta solved this with a DynamoDB-backed log store (⚠ verify), and Databricks with its own commit service. Delta 4.0's catalog-managed tables (Preview) hand commit arbitration to the catalog, which is the same direction Iceberg took.
+A commit is the creation of the next numbered JSON file in `_delta_log`, and it must fail if that file already exists. S3 didn't originally offer put-if-absent, so two clusters could both "win" version N+1. OSS Delta solved this with a DynamoDB-backed log store (still marked experimental), and Databricks with its own commit service. Catalog-managed tables (Preview in Delta 4.0, production-supported since 4.1) hand commit arbitration to the catalog, which is the same direction Iceberg took.
 
 </details>
 
@@ -587,7 +587,7 @@ They expose usage, prices, audit logs, lineage and query history as queryable De
 <details>
 <summary><b>Q: How does Delta Sharing work, and how would you share with a Snowflake account?</b></summary>
 
-The sharing server authorizes the recipient and returns short-lived pre-signed URLs. The recipient reads the files directly with its own compute, and the provider remains the single source of truth. Between workspaces I'd use Databricks-to-Databricks sharing. For Snowflake I'd use open sharing, which Snowflake now consumes natively as a catalog-linked database. Check the provider-side table-feature constraints, such as UniForm and deletion vectors, and plan for token expiry.
+The sharing server authorizes the recipient and returns short-lived pre-signed URLs. The recipient reads the files directly with its own compute, and the provider remains the single source of truth. Between workspaces I'd use Databricks-to-Databricks sharing. For Snowflake I'd use open sharing, which Snowflake now consumes natively as a catalog-linked database. The shared tables are read-only in Snowflake, and I'd plan for token expiry or use OIDC instead of bearer tokens.
 
 </details>
 
@@ -771,7 +771,7 @@ Schedules are predictable, but they trade wasted runs against latency because yo
 </details>
 
 <details>
-<summary><b>Q: dbt vs Dynamic Tables / Lakeflow Spark Declarative Pipelines?</b></summary>
+<summary><b>Q: dbt vs Dynamic Tables / Lakeflow pipelines?</b></summary>
 
 dbt gives portability, CI-friendly tests, docs and environments, and a vendor-neutral DAG. Native declarative tables let the engine own incremental computation and scheduling, with fewer moving parts and lower latency, in exchange for lock-in (P10, P11). The native risk is a silent full-refresh fallback, so pin the refresh mode. Pragmatically: author in dbt and materialize latency-sensitive models as dynamic or streaming tables, and check an adapter's Fusion status before standardizing on Fusion.
 
@@ -924,7 +924,7 @@ Exactly-once needs a replayable source, deterministic checkpointed processing, a
 <details>
 <summary><b>Q: Flink vs Spark Structured Streaming: when each?</b></summary>
 
-On a Databricks lakehouse, Spark is my default: one API for batch and stream, Delta-native exactly-once, managed operations, and seconds-to-minutes latency. Flink wins when you need sub-second latency *and* heavy event-time logic: large keyed state, timers, temporal joins, CEP, Kafka-to-Kafka services. Spark's real-time mode (Preview) narrows the latency gap but still excludes stream–stream joins, session windows and Delta sinks. Flink's cost is a second platform, so I'd prefer a managed service.
+On a Databricks lakehouse, Spark is my default: one API for batch and stream, Delta-native exactly-once, managed operations, and seconds-to-minutes latency. Flink wins when you need sub-second latency *and* heavy event-time logic: large keyed state, timers, temporal joins, CEP, Kafka-to-Kafka services. Spark's real-time mode (GA on Databricks) narrows the latency gap but still excludes stream–stream outer joins, session windows and Delta sinks. Flink's cost is a second platform, so I'd prefer a managed service.
 
 </details>
 
@@ -1068,7 +1068,7 @@ Every file carries fixed overhead: a metadata entry, listing and open calls, foo
 <details>
 <summary><b>Q: How would you implement chargeback?</b></summary>
 
-Make attribution structural rather than voluntary. Snowflake: warehouses per team, tags, and `QUERY_TAG` on shared warehouses. Databricks: mandatory tags through compute policies, and budget policies for serverless. Then publish an allocation rule for shared costs such as idle time, platform services and shared storage. Run showback for a few cycles until untagged spend is small and teams trust the numbers, then switch to chargeback. Chargeback on poor tagging produces arguments, not savings.
+Make attribution structural rather than voluntary. Snowflake: warehouses per team, tags, and `QUERY_TAG` on shared warehouses. Databricks: mandatory tags through compute policies, and serverless usage policies for serverless. Then publish an allocation rule for shared costs such as idle time, platform services and shared storage. Run showback for a few cycles until untagged spend is small and teams trust the numbers, then switch to chargeback. Chargeback on poor tagging produces arguments, not savings.
 
 </details>
 
@@ -1257,9 +1257,9 @@ They layer rather than compete: normalized or Vault-style integration in silver,
 </details>
 
 <details>
-<summary><b>Q: dbt or native transforms (Dynamic Tables, Lakeflow Spark Declarative Pipelines)?</b></summary>
+<summary><b>Q: dbt or native transforms (Dynamic Tables, Lakeflow pipelines)?</b></summary>
 
-dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects such as dynamic tables or streaming tables (⚠ verify the current adapter support).
+dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects: `dynamic_table` in dbt-snowflake, and `materialized_view` / `streaming_table` in dbt-databricks (the latter needs Unity Catalog and serverless SQL warehouses).
 
 </details>
 
@@ -1294,7 +1294,7 @@ Running two because two teams each prefer one is an organizational problem disgu
 <details>
 <summary><b>Q: Partitioning or clustering?</b></summary>
 
-Hive-style partitioning physically separates data by directory. That works for coarse, low-cardinality columns that every query filters on (e.g., date on very large tables). On high-cardinality columns it produces small files, and a bad choice is expensive to undo. Clustering sorts data within files so that min/max ranges are narrow and skipping works (P4), and modern implementations (liquid clustering, Snowflake automatic clustering) can be changed and maintained incrementally. Today's default is to cluster rather than partition, except for very large tables with an obvious, stable partition column.
+Hive-style partitioning physically separates data by directory. That works for coarse, low-cardinality columns that every query filters on (e.g., date on very large tables). On high-cardinality columns it produces small files, and a bad choice is expensive to undo. Clustering sorts data within files so that min/max ranges are narrow and skipping works (P4), and modern implementations (liquid clustering, Snowflake automatic clustering) can be changed and maintained incrementally. Today's default is to cluster rather than partition. Databricks' own guidance is: don't partition under 1 TB, prefer liquid clustering from 1 to 100 TB, and consider partitioning only above ~100 TB, with each partition holding at least 1 GB.
 
 </details>
 
@@ -1484,7 +1484,7 @@ Cortex is SQL-first and managed: AI functions, Cortex Search, Analyst, and Agent
 <details>
 <summary><b>Q: How do you keep a vector index fresh and secure?</b></summary>
 
-Drive it from the governed source table with incremental sync, monitor end-to-end lag against an SLA, and treat embedding-model changes as versioned backfills. Because indexes don't inherit per-user row policies by default **(⚠ verify)**, partition by audience or enforce server-side ACL filters, redact before embedding, and propagate deletions.
+Drive it from the governed source table with incremental sync, monitor end-to-end lag against an SLA, and treat embedding-model changes as versioned backfills. Because indexes don't inherit per-user row policies by default, partition by audience or enforce server-side ACL filters, redact before embedding, and propagate deletions.
 
 </details>
 

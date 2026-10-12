@@ -4,7 +4,7 @@ A principles-first crash course for data architect interviews on **Snowflake and
 
 **How to use it:** read [§01 First Principles](01-first-principles.md) first. It defines eleven principles (P1–P11), and every other section derives its facts from them. When a section writes "(P3)", it means "this follows from immutable files + a metadata log". If you understand why something works, you rarely need to memorize what it is.
 
-> As of October 2026. Snowflake and Databricks rename and ship features constantly. Status tags: **(GA)**, **(Preview)**, and **(⚠ verify)** for anything not confirmed against official docs. Always check the docs before quoting a limit in production work.
+> As of October 2026. Snowflake and Databricks rename and ship features constantly. Status tags: **(GA)**, **(Preview)**, and **(⚠ verify)** for anything not confirmed against official docs. Platform claims were fact-checked against official docs on 2026-10-12, and only a handful of tags remain. Still, check the docs before quoting a limit in production work.
 
 ## The principles at a glance
 
