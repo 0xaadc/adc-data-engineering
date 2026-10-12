@@ -43,9 +43,9 @@
 | Lakeflow Jobs | Tasks (task graphs) |
 | Lakeflow pipelines (formerly DLT) MVs / streaming tables | Dynamic Tables (target lag) |
 | Auto Loader | Snowpipe (files) / Snowpipe Streaming (rows) |
-| Delta Sharing (open protocol) | Secure Data Sharing (zero-copy in-region, closed) / listings / Marketplace |
+| OpenSharing (formerly Delta Sharing; open protocol) | Secure Data Sharing (zero-copy in-region, closed) / listings / Marketplace. Snowflake can now also consume OpenSharing/Delta shares natively |
 | PySpark DataFrame | Snowpark (DataFrame compiled to SQL pushdown) |
-| Mosaic AI / Agent Bricks / AI Functions / AI Search (formerly Vector Search) / Genie | Cortex AI functions / Cortex Search / Cortex Analyst / Snowflake Intelligence |
+| Mosaic AI / Agent Bricks / AI Functions / AI Search (formerly Vector Search) / Genie Agents (formerly Genie spaces) | Cortex AI functions / Cortex Search / Cortex Agents (preferred over Cortex Analyst for new builds) / Snowflake CoWork (formerly Snowflake Intelligence) |
 | Lakebase (Postgres) | Hybrid tables / Snowflake Postgres |
 | Lakeflow Connect | Openflow (managed NiFi) |
 
@@ -102,7 +102,11 @@
 | Old / commonly assumed | Current (Oct 2026) | Where |
 |---|---|---|
 | Delta Live Tables → briefly "Lakeflow (Spark) Declarative Pipelines" | **Lakeflow pipelines**, which extend open-source Apache Spark Declarative Pipelines (Spark 4.1+); `import dlt` → `from pyspark import pipelines as dp`; `APPLY CHANGES` → **AUTO CDC** | [§07](07-databricks-gap-fill.md) |
-| Databricks Workflows | **Lakeflow Jobs** | [§07](07-databricks-gap-fill.md) |
+| Databricks Jobs / Workflows | **Lakeflow Jobs** | [§07](07-databricks-gap-fill.md) |
+| Delta Sharing | **OpenSharing** (Jun 2026) | [§07](07-databricks-gap-fill.md) |
+| Delta UniForm | Still works; docs now call it **"Iceberg reads"**, alongside managed Iceberg tables in UC | [§04](04-table-formats-catalogs.md), [§08](08-snowflake-vs-databricks.md) |
+| Genie spaces | **Genie Agents** (Jul 2026) | [§07](07-databricks-gap-fill.md), [§18](18-ai-on-data-platform.md) |
+| Snowflake Intelligence | **Snowflake CoWork** | [§08](08-snowflake-vs-databricks.md), [§18](18-ai-on-data-platform.md) |
 | Databricks Asset Bundles | **Declarative Automation Bundles** (same `databricks bundle` CLI) | [§07](07-databricks-gap-fill.md), [§14](14-reliability-dataops.md) |
 | Mosaic AI Vector Search | **AI Search** | [§18](18-ai-on-data-platform.md) |
 | "Databricks has no managed DR" | Managed Disaster Recovery in gated Preview | [§14](14-reliability-dataops.md) |
@@ -116,7 +120,7 @@
 | Spark continuous trigger on Databricks | Not supported. Use **real-time mode** (GA since Mar 2026; still Preview inside Lakeflow pipelines); `Trigger.Once` deprecated → `availableNow` | [§11](11-stream-processing.md) |
 | dbt Labs independent | **Merged with Fivetran** | [§09](09-batch-pipelines.md) |
 
-These came from search summaries of official release notes, so confirm them before stating dates.
+Fact-checked against official docs and release notes in October 2026.
 
 ## 8. Foundations in one line each
 

@@ -97,23 +97,23 @@ The main tools (compared below):
 
 **dbt** compiles SQL+Jinja models into DDL/DML that runs on the engine. It provides a DAG from `ref()`, tests (generic, singular, unit), docs, lineage, environments, incremental strategies (`merge`, `delete+insert`, `insert_overwrite`, `microbatch`) and snapshots for SCD2. Its value is portability plus a software-engineering workflow. Current state:
 - The Fivetran and dbt Labs merger **closed June 1, 2026**.
-- The **Fusion** engine (a Rust rewrite that parses and type-checks SQL locally) is GA on the dbt platform for Snowflake and in preview for other adapters **(⚠ verify per adapter)**.
-- **dbt Core v2.0 (alpha)** open-sources the Fusion runtime under Apache 2.0.
+- The **Fusion** engine (a Rust rewrite that parses and type-checks SQL locally), now shipped as **dbt v2**, is **(GA)** for Snowflake, Databricks, BigQuery and Redshift, with Spark in Beta.
+- **dbt OSS** (`dbt-oss`, announced as dbt Core v2.0 alpha) is the Apache 2.0 open-source distribution of the v2 runtime; dbt v2 adds proprietary static analysis and LSP features on top.
 - **dbt Projects on Snowflake** **(GA, Nov 2025)** runs dbt natively inside Snowflake.
 - Fivetran also owns SQLMesh (Tobiko Data, Sept 2025). How the two converge is **(⚠ verify)**.
 
 **Snowflake Dynamic Tables**: you declare a query and a `TARGET_LAG`. Snowflake maintains the dependency graph and refreshes incrementally where the query allows. `TARGET_LAG = DOWNSTREAM` refreshes an intermediate table only when its consumers need it, and `FROZEN WHERE` (formerly `IMMUTABLE WHERE`) skips historical regions. Failure mode: a query that can't refresh incrementally falls back to an expensive full refresh. Pin `REFRESH_MODE` so that fails loudly.
 
-**Lakeflow Spark Declarative Pipelines** (formerly DLT): streaming tables, materialized views, expectations and AUTO CDC. The core declarative API is in Apache Spark 4.1. AUTO CDC is Databricks-only.
+**Lakeflow pipelines** (formerly DLT): streaming tables, materialized views, expectations and AUTO CDC. The core declarative API is in Apache Spark 4.1. AUTO CDC is Databricks-only.
 
 The trade (P10, P11): native declarative transforms give fewer moving parts, engine-owned incrementality and lower latency, in exchange for lock-in. A common hybrid is dbt for authoring, with latency-sensitive models materialized as `dynamic_table` (Snowflake) or `streaming_table`/`materialized_view` (Databricks).
 
 ### Build vs buy ingestion
 
-- **Fivetran**: managed SaaS, priced on monthly active rows (MAR), metered per connection since 2025. Reports of a per-connection minimum and of deletes counting toward MAR from 2026 are **(⚠ verify)**.
-- **Airbyte**: open source plus cloud, with capacity-based tiers **(⚠ verify tier mapping)**.
+- **Fivetran**: managed SaaS, priced on monthly active rows (MAR), metered per connection since 2025. Since January 2026, connections with 1 to 1M MAR carry a minimum charge ($5 base on Standard), and deletes count toward paid MAR.
+- **Airbyte**: open source (Core) plus cloud. Standard is volume-based, Plus buys fixed monthly credits, and Pro and Enterprise Flex are capacity-based (Data Workers).
 - **Lakeflow Connect**: managed SaaS and database connectors billed as Databricks compute. Query-based database connectors went **GA in May 2026**.
-- **Snowflake Openflow**: managed Apache NiFi. **(GA)** on AWS (BYOC) and Snowflake-managed on AWS/Azure.
+- **Snowflake Openflow**: managed Apache NiFi. **(GA)** as BYOC on AWS and as Snowflake Deployments on AWS, Azure and GCP; new deployments are gen 2 (GA Sept 2026).
 
 How to decide:
 - **Commoditization.** SaaS APIs churn, paginate, rate-limit and drift, so maintaining them is toil. Buy.
@@ -155,7 +155,7 @@ How to decide:
 
 **Transform layers**
 
-| | dbt | Snowflake Dynamic Tables | Lakeflow SDP |
+| | dbt | Snowflake Dynamic Tables | Lakeflow pipelines |
 |---|---|---|---|
 | Incremental logic | You choose the strategy | Engine decides | Engine decides; AUTO CDC |
 | Tests/docs/lineage | Rich, built in | Catalog lineage; tests elsewhere | Expectations, UC lineage |
@@ -199,7 +199,7 @@ Choose by where the work lives and how heterogeneous the estate is (P10). Airflo
 
 Schedules are predictable, but they trade wasted runs against latency because you're guessing when upstream data will be ready. Event triggers run exactly when data lands. They bring bursts, duplicate events and the need for absence alerting. Use events for data-readiness dependencies and schedules for business deadlines, and monitor freshness either way.
 
-**Q: dbt vs Dynamic Tables / Lakeflow Spark Declarative Pipelines?**
+**Q: dbt vs Dynamic Tables / Lakeflow pipelines?**
 
 dbt gives portability, CI-friendly tests, docs and environments, and a vendor-neutral DAG. Native declarative tables let the engine own incremental computation and scheduling, with fewer moving parts and lower latency, in exchange for lock-in (P10, P11). The native risk is a silent full-refresh fallback, so pin the refresh mode. Pragmatically: author in dbt and materialize latency-sensitive models as dynamic or streaming tables, and check an adapter's Fusion status before standardizing on Fusion.
 
@@ -235,3 +235,14 @@ Buy connectors for commoditized SaaS and standard databases. API churn and schem
 - https://snowflake.com/en/product/features/openflow/
 - https://hevodata.com/learn/fivetran-mar-pricing/
 - https://bigdatawire.com/this-just-in/airbyte-introduces-capacity-based-pricing-for-predictable-data-movement-costs
+- https://docs.getdbt.com/docs/supported-data-platforms
+- https://docs.getdbt.com/docs/dbt-versions/dbt-upgrade/upgrading-to-v2
+- https://docs.getdbt.com/docs/local/install-dbt-v2
+- https://docs.getdbt.com/docs/dbt-licensing
+- https://fivetran.com/docs/core-concepts/usage-based-pricing
+- https://fivetran.com/docs/core-concepts/usage-based-pricing/pricing-updates/2026-pricing-updates
+- https://airbyte.com/pricing
+- https://docs.databricks.com/aws/en/release-notes/product/2026/may
+- https://docs.snowflake.com/en/user-guide/data-integration/openflow/about
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-09-08-openflow-gen2-deployment-runtime-ga
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-05-28-dynamic-tables-frozen-regions-rename

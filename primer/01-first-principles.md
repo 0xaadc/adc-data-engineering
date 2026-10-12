@@ -181,7 +181,7 @@ What still differs: defaults, ergonomics, ecosystem, pricing mechanics, and wher
    - Mechanism: micro-partitions are immutable (P3), so a clone only copies metadata pointers.
    - Consequence: no extra storage until either side changes.
    - Tradeoff: storage grows as the two tables diverge, and governance, grants, and cost attribution need care.
-2. **When you don't know a specific feature, reason out loud from principles and label the assumption.** For example: "I haven't run Snowflake in production, but since storage is decoupled and partitions are immutable, I'd expect sharing to be metadata-only. The Databricks equivalent is Delta Sharing, which differs because it's an open protocol." This is honest, and it shows the depth interviewers are actually probing for.
+2. **When you don't know a specific feature, reason out loud from principles and label the assumption.** For example: "I haven't run Snowflake in production, but since storage is decoupled and partitions are immutable, I'd expect sharing to be metadata-only. The Databricks equivalent is OpenSharing (formerly Delta Sharing), which differs because it's an open protocol." This is honest, and it shows the depth interviewers are actually probing for.
 3. **Name the principle being traded.** Almost every "why X over Y" question ([§15](15-why-x-over-y.md)) is really asking which principle the organization values more in that context.
 
 ## Comparison

@@ -13,14 +13,14 @@ Between 2024 and 2026, Databricks renamed much of its product surface. It also s
 - **Lakeflow Connect: managed ingestion connectors.**
   - **Why it exists:** building and running your own SaaS and database connectors is undifferentiated work.
   - **How it works:** connectors read incrementally. Database sources use change data capture (CDC) from the transaction log (P5). Data lands as streaming tables on serverless compute.
-  - **Availability:** varies by connector (⚠ verify per source).
-- **Lakeflow Spark Declarative Pipelines (SDP)**, formerly Delta Live Tables (DLT).
+  - **Availability:** varies by connector, from Beta to GA, so check each source.
+- **Lakeflow pipelines**, formerly Delta Live Tables (DLT), and briefly Lakeflow (Spark) Declarative Pipelines.
   - **Why it exists:** hand-written streaming jobs tend to get checkpoints, ordering, retries and infrastructure wrong.
   - **How it works:** you declare datasets. The engine builds the dependency graph and runs it.
-  - **Open-source core:** Databricks donated the core to Apache Spark as Spark Declarative Pipelines.
-  - **New Python API:** `from pyspark import pipelines as dp`. `@dlt.table` becomes `@dp.table`, and `@dlt.view` becomes `@dp.temporary_view`. The old `dlt` module still works.
+  - **Open-source core:** Databricks donated the core to Apache Spark as Apache Spark Declarative Pipelines (Spark 4.1+). Lakeflow pipelines extend it.
+  - **New Python API:** `from pyspark import pipelines as dp`. `@dlt.table` becomes `@dp.table` for streaming tables or `@dp.materialized_view` for MVs, and `@dlt.view` becomes `@dp.temporary_view`. The old `dlt` module still works.
   - **Databricks-only extras:** expectations, and AUTO CDC (`dp.create_auto_cdc_flow`, formerly `APPLY CHANGES`).
-- **Lakeflow Jobs**, formerly Workflows. The orchestrator: task graphs, file-arrival and table-update triggers, for-each loops and conditional tasks.
+- **Lakeflow Jobs**, formerly Databricks Jobs (Workflows), renamed Jun 2025. The orchestrator: task graphs, file-arrival and table-update triggers, for-each loops and conditional tasks.
 - **Lakeflow Designer** **(GA)** Jun 2026. A visual, no-code canvas for building pipelines. It exists so analysts can build pipelines without leaving governance. The flows it produces are generated code, governed in UC.
 
 **Streaming tables vs. materialized views (MVs)**
@@ -49,9 +49,9 @@ Results land in the pipeline event log, where you can alert on them (P8).
   - **How liquid clustering fixes both:** clustering keys live in table metadata. `OPTIMIZE` clusters only files that aren't clustered yet. `ALTER TABLE ... CLUSTER BY` changes keys without rewriting existing data.
   - **Constraint:** a table can't combine liquid clustering with partitioning or Z-order.
   - This is skipping work instead of doing it faster (P4).
-- **Automatic liquid clustering (`CLUSTER BY AUTO`).** Databricks picks keys from the table's query history. It changes keys only when the predicted data-skipping savings exceed the cost of reclustering. Requirements: predictive optimization enabled, and Databricks Runtime (DBR) 15.4 LTS or later. The docs label it **(Preview)**; check whether it has reached GA (⚠ verify).
-- **Predictive optimization.** Runs `OPTIMIZE`, `VACUUM` and `ANALYZE` automatically on UC managed tables, using telemetry to decide when. It runs on serverless compute that you pay for. It covers managed tables only, which is one reason Databricks pushes managed tables. Default enablement per account (⚠ verify).
-- **Deletion vectors.** Deletes become merge-on-read: `DELETE`, `UPDATE` and `MERGE` write a small bitmap marking removed rows instead of rewriting Parquet files. Readers apply the bitmap, and compaction later removes the rows physically. Writes get faster, and reads are slightly slower until compaction. Some external readers can't handle deletion vectors; for example, Delta Sharing to Snowflake reportedly didn't support them as of May 2026 (⚠ verify).
+- **Automatic liquid clustering (`CLUSTER BY AUTO`).** Databricks picks keys from the table's query history. It changes keys only when the predicted data-skipping savings exceed the cost of reclustering. Requirements: predictive optimization enabled, and Databricks Runtime (DBR) 15.4 LTS or later. **(GA)** since Jun 2025.
+- **Predictive optimization.** Runs `OPTIMIZE`, `VACUUM` and `ANALYZE` automatically on UC managed tables, using telemetry to decide when. It runs on serverless compute that you pay for. It covers managed tables only, which is one reason Databricks pushes managed tables. On by default for all accounts: new ones since Nov 2024, existing ones rolled out from May 2025.
+- **Deletion vectors.** Deletes become merge-on-read: `DELETE`, `UPDATE` and `MERGE` write a small bitmap marking removed rows instead of rewriting Parquet files. Readers apply the bitmap, and compaction later removes the rows physically. Writes get faster, and reads are slightly slower until compaction. Some external readers can't handle deletion vectors; for example, open-source sharing recipients need a recent connector (Spark connector 3.1+), and the table must be shared with history.
 
 ### Compute
 
@@ -71,11 +71,11 @@ Results land in the pipeline event log, where you can alert on them (P8).
 
 ### Sharing and collaboration
 
-- **Delta Sharing:** an open REST protocol. The server authorizes the recipient and returns short-lived pre-signed URLs to Parquet files. The recipient reads straight from storage, so the provider runs no compute for the read. There are two modes:
+- **Delta Sharing** (renamed **OpenSharing** in Jun 2026): an open REST protocol. The server authorizes the recipient and returns short-lived pre-signed URLs to Parquet files. The recipient reads straight from storage, so the provider runs no compute for the read. There are two modes:
   - **Databricks-to-Databricks:** UC to UC. You can share tables, views, volumes, models and notebooks.
   - **Open sharing:** the recipient authenticates with a bearer token or OIDC. Any client works: pandas, Spark, Power BI, or Snowflake. Snowflake's native consumption is **(GA)** as of Jul 2026 ([§08](08-snowflake-vs-databricks.md)).
-  - **Token changes to know:** tokens created on or after Jul 1, 2026 use recipient-specific URLs. Long-lived tokens issued before Dec 8, 2025 expire on Dec 8, 2026 unless renewed.
-- **Clean Rooms:** each party shares data into an isolated serverless environment. Only approved notebooks run there, and only approved outputs leave. No party sees another's raw rows. Built on Delta Sharing. Status (⚠ verify).
+  - **Token changes to know:** new tokens last at most one year. Long-lived tokens issued before Dec 8, 2025 expire on Dec 8, 2026 unless renewed. A move to recipient-specific URLs, planned for Jul 1, 2026, was postponed with no new date.
+- **Clean Rooms:** each party shares data into an isolated serverless environment. Only approved notebooks run there, and only approved outputs leave. No party sees another's raw rows. Built on Delta Sharing. **(GA)** since Jan 2025.
 
 ### System tables
 
@@ -86,7 +86,7 @@ Platform telemetry is exposed as Delta tables in the `system` catalog. Key table
 - `system.query.history`
 - `system.compute.*` and `system.lakeflow.*`
 
-They exist so that FinOps and audit can be plain SQL instead of API scraping. Usage joined to custom tags gives chargeback by team or project, and audit plus lineage answer "who touched what?" ([§13](13-performance-cost.md), [§12](12-governance-security.md)). Exact table names vary by schema (⚠ verify).
+They exist so that FinOps and audit can be plain SQL instead of API scraping. Usage joined to custom tags gives chargeback by team or project, and audit plus lineage answer "who touched what?" ([§13](13-performance-cost.md), [§12](12-governance-security.md)).
 
 ### Declarative Automation Bundles
 
@@ -101,13 +101,13 @@ A bundle is a YAML project that declares jobs, pipelines, dashboards and apps ne
   - **How it works:** separating storage from compute enables autoscaling, scale-to-zero, instant copy-on-write branches and point-in-time recovery.
   - **Versions:** Postgres 17 is the default; 16 to 18 are supported.
   - **APIs:** programmatic APIs reached GA in Aug 2026.
-  - **Sync with Delta tables:** feature name and status (⚠ verify).
-- **UC metric views.** A semantic layer: measures and dimensions are defined in YAML and registered in UC. Dashboards, Genie and external BI tools all reuse the same definitions. Entered **(Preview)** May 2025; GA status (⚠ verify).
+  - **Sync with Delta tables:** **synced tables** **(GA)** copy UC tables into Postgres for serving. **Lakehouse sync** **(Preview)** replicates Postgres tables back to Delta through CDC.
+- **UC metric views.** A semantic layer: measures and dimensions are defined in YAML and registered in UC. Dashboards, Genie and external BI tools all reuse the same definitions. Entered **(Preview)** May 2025; now **(GA)**.
 - **Lakehouse Federation.** Two modes ([§08](08-snowflake-vs-databricks.md)):
   - **Query federation:** read-only JDBC pushdown to an external database.
   - **Catalog federation:** UC reads a foreign catalog's files directly. Sources include Hive metastore, Glue and Snowflake Horizon Iceberg tables.
-- **Databricks Apps.** Host data and AI web apps (Streamlit, Dash, Flask, Node and others) on serverless compute, with UC-governed data access. Status (⚠ verify).
-- **AI/BI dashboards (formerly Lakeview) and Genie.** Genie turns natural-language questions into SQL within a curated space of tables, instructions and trusted queries. Its answer quality depends on metadata quality ([§18](18-ai-on-data-platform.md)).
+- **Databricks Apps.** Host data and AI web apps (Streamlit, Dash, Flask, Node and others) on serverless compute, with UC-governed data access. **(GA)** since May 2025.
+- **AI/BI dashboards (formerly Lakeview) and Genie.** Genie turns natural-language questions into SQL within a curated space of tables, instructions and trusted queries. Its answer quality depends on metadata quality ([§18](18-ai-on-data-platform.md)). Genie spaces were renamed **Genie Agents** in Jul 2026.
 - **Unity Catalog open source and Iceberg.** UC was open-sourced in 2024 and exposes an Iceberg REST catalog API.
   - **(GA):** managed Iceberg tables, foreign Iceberg tables, Iceberg v3 features, and sharing of managed Iceberg tables.
   - **(Preview):** managed Iceberg materialized views.
@@ -117,16 +117,18 @@ A bundle is a YAML project that declares jobs, pipelines, dashboards and apps ne
 
 | Old | Current |
 |---|---|
-| Delta Live Tables (DLT); briefly "Lakeflow Declarative Pipelines" | Lakeflow Spark Declarative Pipelines (SDP); OSS core: Spark Declarative Pipelines |
-| `import dlt`, `@dlt.table`, `@dlt.view` | `from pyspark import pipelines as dp`, `@dp.table`, `@dp.temporary_view` |
+| Delta Live Tables (DLT); briefly Lakeflow Declarative Pipelines / Lakeflow Spark Declarative Pipelines | Lakeflow pipelines; OSS core: Apache Spark Declarative Pipelines |
+| `import dlt`, `@dlt.table`, `@dlt.view` | `from pyspark import pipelines as dp`, `@dp.table` / `@dp.materialized_view`, `@dp.temporary_view` |
 | `APPLY CHANGES INTO` | AUTO CDC (`create_auto_cdc_flow`) |
-| Databricks Workflows | Lakeflow Jobs |
+| Databricks Jobs (Workflows) | Lakeflow Jobs |
 | Databricks Asset Bundles | Declarative Automation Bundles (CLI unchanged) |
+| Delta Sharing | OpenSharing (Jun 2026) |
 | Lakeview dashboards | AI/BI dashboards |
+| Genie spaces | Genie Agents (Jul 2026) |
 | Hive partitioning + `ZORDER BY` | Liquid clustering, `CLUSTER BY AUTO` |
 | Scheduled `OPTIMIZE`/`VACUUM` jobs | Predictive optimization |
 | Hand-built or partner ingestion | Lakeflow Connect |
-| UniForm as the only Iceberg path | Managed Iceberg tables in UC |
+| UniForm as the only Iceberg path | Managed Iceberg tables in UC; UniForm now documented as "Iceberg reads" |
 
 ## Interview questions
 
@@ -152,7 +154,7 @@ They expose usage, prices, audit logs, lineage and query history as queryable De
 
 **Q: How does Delta Sharing work, and how would you share with a Snowflake account?**
 
-The sharing server authorizes the recipient and returns short-lived pre-signed URLs. The recipient reads the files directly with its own compute, and the provider remains the single source of truth. Between workspaces I'd use Databricks-to-Databricks sharing. For Snowflake I'd use open sharing, which Snowflake now consumes natively as a catalog-linked database. Check the provider-side table-feature constraints, such as UniForm and deletion vectors, and plan for token expiry.
+The sharing server authorizes the recipient and returns short-lived pre-signed URLs. The recipient reads the files directly with its own compute, and the provider remains the single source of truth. Between workspaces I'd use Databricks-to-Databricks sharing. For Snowflake I'd use open sharing, which Snowflake now consumes natively as a catalog-linked database. The shared tables are read-only in Snowflake, and I'd plan for token expiry or use OIDC instead of bearer tokens.
 
 **Q: Why use Declarative Automation Bundles instead of building in the UI?**
 
@@ -163,29 +165,41 @@ Jobs, pipelines and dashboards created by clicking drift between environments, c
 Apps need fast single-row reads and writes, which columnar tables handle poorly (P1). A separate OLTP database plus reverse ETL adds a pipeline, a copy and another governance model. Lakebase separates storage from compute to get autoscaling, scale-to-zero and instant branches, all under platform governance. I wouldn't move a high-throughput core system of record there until its HA and operational track record meet our SLAs.
 
 ## Takeaways
-- Current names: Lakeflow Connect, Lakeflow Spark Declarative Pipelines (`dp`), Lakeflow Jobs, Declarative Automation Bundles.
+- Current names: Lakeflow Connect, Lakeflow pipelines (`dp`), Lakeflow Jobs, Declarative Automation Bundles, OpenSharing.
 - Streaming tables process each record once, for ingestion. Materialized views keep a result correct, for transformations.
 - Liquid clustering keeps keys in metadata and clusters incrementally, which beats both directory partitions and full Z-order rewrites.
 - Predictive optimization and automatic liquid clustering move maintenance onto the platform, but only for UC managed tables.
 - Serverless trades control for operability. Photon helps columnar operators, not UDFs.
-- Delta Sharing grants access to files instead of copying them, and Snowflake now consumes shares natively.
+- OpenSharing (formerly Delta Sharing) grants access to files instead of copying them, and Snowflake now consumes shares natively.
 - System tables turn FinOps and audit into SQL, provided resources are tagged.
 - Lakebase and metric views extend the platform toward OLTP and a semantic layer.
 
 ## Sources
 - https://docs.databricks.com/aws/en/dev-tools/bundles/faqs
-- https://docs.databricks.com/aws/en/dlt/python-ref
-- https://docs.databricks.com/gcp/en/dlt/concepts
+- https://docs.databricks.com/aws/en/ldp/where-is-dlt
+- https://docs.databricks.com/aws/en/ldp/developer/python-ref
+- https://docs.databricks.com/aws/en/ldp/concepts
 - https://docs.databricks.com/aws/en/delta/clustering
-- https://www.databricks.com/blog/announcing-automatic-liquid-clustering
 - https://docs.databricks.com/aws/en/release-notes/product/
+- https://docs.databricks.com/aws/en/release-notes/product/2025/june
+- https://docs.databricks.com/aws/en/release-notes/product/2025/november
+- https://docs.databricks.com/aws/en/release-notes/product/2025/december
+- https://docs.databricks.com/aws/en/release-notes/product/2026/march
+- https://docs.databricks.com/aws/en/release-notes/product/2026/june
+- https://docs.databricks.com/aws/en/release-notes/product/2026/july
+- https://docs.databricks.com/aws/en/opensharing/
+- https://docs.databricks.com/aws/en/admin/system-tables/
+- https://docs.databricks.com/aws/en/oltp/projects/sync-tables
+- https://docs.databricks.com/aws/en/oltp/projects/lakebase-cdf
+- https://docs.databricks.com/aws/en/query-federation/catalog-federation
+- https://docs.databricks.com/aws/en/delta/iceberg-reads
 - https://learn.microsoft.com/en-us/azure/databricks/release-notes/product/
 - https://docs.databricks.com/aws/en/release-notes/lakebase/
-- https://docs.databricks.com/aws/release-notes/product/2025/may
+- https://docs.databricks.com/aws/en/release-notes/product/2025/may
 - https://docs.databricks.com/aws/en/metric-views
 - https://docs.databricks.com/aws/en/query-federation/database-federation
 - https://docs.databricks.com/aws/en/external-access/iceberg
-- https://docs.databricks.com/aws/en/delta-sharing/create-recipient-token
+- https://docs.databricks.com/aws/en/opensharing/create-recipient-token
 - https://docs.databricks.com/aws/en/release-notes/whats-coming
 - https://docs.snowflake.com/en/release-notes/2026/other/2026-07-21-delta-sharing-horizon-catalog-ga
-- https://www.databricks.com/blog/unity-catalog-and-next-era-apache-icebergtm
+- https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-catalog-integration-delta-sharing

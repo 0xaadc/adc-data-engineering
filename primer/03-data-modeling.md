@@ -98,7 +98,7 @@ Pitfalls:
 - Deletes must be modeled explicitly, usually by closing the current version and flagging it.
 
 Declarative alternatives:
-- **Databricks**: Lakeflow Spark Declarative Pipelines **AUTO CDC** (which replaces `APPLY CHANGES`, same syntax) with `STORED AS SCD TYPE 2` (SQL) or `stored_as_scd_type=2` (Python). It sequences out-of-order events with `SEQUENCE BY` and writes `__START_AT`/`__END_AT`. It needs serverless or the Pro/Advanced edition. Syntax sketch **(⚠ verify)**: `CREATE FLOW f AS AUTO CDC INTO dim FROM stream(src) KEYS (id) APPLY AS DELETE WHEN op = 'd' SEQUENCE BY lsn COLUMNS * EXCEPT (op, lsn) STORED AS SCD TYPE 2;`
+- **Databricks**: Lakeflow pipelines **AUTO CDC** (which replaces `APPLY CHANGES`, same syntax) with `STORED AS SCD TYPE 2` (SQL) or `stored_as_scd_type="2"` (Python). It sequences out-of-order events with `SEQUENCE BY` and writes `__START_AT`/`__END_AT`. It needs serverless or the Pro/Advanced edition. Syntax sketch: `CREATE FLOW f AS AUTO CDC INTO dim FROM stream(src) KEYS (id) APPLY AS DELETE WHEN op = 'd' SEQUENCE BY lsn COLUMNS * EXCEPT (op, lsn) STORED AS SCD TYPE 2;`
 - **Snowflake** has no built-in SCD2 operator. Use Streams + MERGE (above) or dbt **snapshots**, which work on either platform.
 
 Feeding SCD2 from CDC is covered in [§09](09-batch-pipelines.md).
@@ -113,7 +113,7 @@ Metrics drift because every BI tool, notebook and extract re-implements "active 
 
 - **dbt Semantic Layer / MetricFlow**: YAML semantic models and metrics in the dbt project, served through APIs to BI tools. MetricFlow was **open-sourced under Apache 2.0 (Oct 2025)**.
 - **Snowflake semantic views** **(GA)**: schema-level objects created with `CREATE SEMANTIC VIEW` and queried with `SELECT ... FROM SEMANTIC_VIEW(...)`. Cortex Analyst uses them as context. Snowsight management and sharing went GA in late 2025.
-- **Databricks Unity Catalog metric views**: YAML definitions registered in UC that follow UC permissions and are used by dashboards, Genie and external BI. Public Preview from May 2025. Databricks announced Unity Catalog business semantics, including metric views, as GA in 2026, with the core being open-sourced into Apache Spark **(⚠ verify date and scope)**.
+- **Databricks Unity Catalog metric views**: YAML definitions registered in UC that follow UC permissions and are used by dashboards, Genie and external BI. Public Preview from May 2025. Databricks announced Unity Catalog business semantics, including metric views, as **(GA)** in April 2026, with the core metric view implementation being open-sourced into Apache Spark.
 - **Cube**: open-source, warehouse-agnostic semantic layer with SQL/REST/GraphQL APIs and pre-aggregation caching. **LookML**: Looker's modeling language, the long-standing BI-embedded option.
 - **Open Semantic Interchange (OSI)** → **Apache Ossie (Incubating)**: a vendor-neutral YAML/JSON spec for metrics, dimensions and relationships. It launched in Sept 2025 (Snowflake, Salesforce, dbt Labs, BlackRock, RelationalAI and others), published an initial spec in early 2026, and entered the Apache Incubator under the new name in mid-2026, with converters for dbt and others. It applies the open-format idea to semantics (P11): define a metric once and move it between tools.
 

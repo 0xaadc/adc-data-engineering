@@ -19,7 +19,7 @@ That makes AI a data-platform responsibility, and the architect owns it.
 - **Two stores, one definition.** The *offline* store holds historical feature values in lakehouse tables for training and batch scoring. The *online* store holds the latest value per entity key for millisecond lookups at inference. A pipeline keeps the two in sync (P1).
 - **Training-serving skew.** If training computes a feature in batch SQL and serving recomputes it in app code, the model sees different distributions in production. Define the feature once and materialize it to both stores.
 - **Point-in-time correctness.** For a label at time *t*, join each feature's value *as of t*: the latest value with timestamp ≤ *t*. A plain join on entity key pulls in today's value, which leaks the future (label leakage). Offline metrics look great and the model then underperforms in production. The mechanism is an AS-OF join on (entity key, timestamp). Also model availability latency: if a feature lands 2 hours late in production, join as of *t* − 2h.
-- **Databricks.** In Feature Engineering in Unity Catalog, any Delta table with a primary key (plus an optional timeseries key) is a feature table, and training sets use point-in-time lookups. Online serving is the **Online Feature Store powered by Lakebase**; `publish_table` syncs in TRIGGERED (default) or CONTINUOUS mode and requires Change Data Feed. GA status varies by cloud (GCP is Beta) **(⚠ verify)**. Legacy online tables are no longer supported. Model Serving can look features up automatically.
+- **Databricks.** In Feature Engineering in Unity Catalog, any Delta table with a primary key (plus an optional timeseries key) is a feature table, and training sets use point-in-time lookups. Online serving is the **Online Feature Store powered by Lakebase**; `publish_table` syncs in TRIGGERED (default), CONTINUOUS, or SNAPSHOT mode, and the first two require Change Data Feed. It's **(GA)** on AWS and Azure and **(Preview)** (Beta) on GCP. Legacy online tables are no longer supported. Model Serving can look features up automatically.
 - **Snowflake.** The Snowflake Feature Store **(GA)** has entities and feature views. Managed feature views are dynamic tables refreshed incrementally, and training data is point-in-time via ASOF JOIN. The Online Feature Store is **(Preview)** (public preview since July 2026) and offers batch, stream, and real-time feature views.
 
 ### Vector search
@@ -28,10 +28,10 @@ That makes AI a data-platform responsibility, and the architect owns it.
   - **HNSW** is a layered neighbor graph that's navigated greedily. It's fast with high recall but memory-heavy.
   - **IVF** clusters vectors around centroids and searches only the nearest lists. It's cheaper, recall depends on how many lists you probe, and it's often paired with quantization.
 - **Hybrid search.** Embeddings miss exact tokens like SKUs, error codes, and names. Combine vector and keyword (BM25) results, fuse the rankings, then rerank the top candidates with a cross-encoder.
-- **Databricks AI Search** (formerly Mosaic AI Vector Search; the rename date is **(⚠ verify)**):
+- **Databricks AI Search** (formerly Vector Search; renamed June 2026):
   - *Delta Sync* indexes update incrementally from a source Delta table, triggered or continuous.
   - *Direct Vector Access* indexes are written via API.
-  - It supports managed or self-managed embeddings, hybrid queries, a reranker, filters, and full-text search **(Preview)**.
+  - It supports managed or self-managed embeddings, hybrid queries, a reranker, filters, and full-text search **(Preview)** (Beta).
 - **Snowflake Cortex Search (GA)** is a managed service over a query. Every request runs vector + keyword + semantic reranking with attribute filters, and the index refreshes against a target lag.
 - **Freshness is a pipeline problem (P7).** Index lag = upstream pipeline lag + sync lag + embedding throughput. Changing the embedding model means re-embedding everything (a backfill), so version the model as part of the index identity.
 
@@ -46,7 +46,7 @@ user ─► app (authenticated identity) ─► retrieve: mandatory ACL filter +
 
 - **Chunking.** Split on structure (headings, sections, table boundaries) rather than fixed character counts, with modest overlap. Prepend the title and section path, and keep chunk → document → source IDs for citations and deletion.
 - **Metadata filters:** tenant, region, document type, effective date, and ACL attributes (allowed groups, classification).
-- **Enforce security at retrieval time (P9).** Access to an index is usually granted at the object level, and the index is built with its owner's privileges. Source row filters and masks therefore don't automatically apply per querying user **(⚠ verify per platform)**. An index that ignores ACLs is a data-exfiltration API. Options:
+- **Enforce security at retrieval time (P9).** Access to an index is usually granted at the object level, and the index is built with its owner's privileges. Source row filters and masks therefore don't automatically apply per querying user: Cortex Search runs with owner's rights, and Databricks AI Search doesn't support row- or column-level permissions. An index that ignores ACLs is a data-exfiltration API. Options:
   1. **Partition indexes by audience** (tenant or sensitivity tier). This is the simplest and strongest option.
   2. **Store ACL columns on each chunk** and apply a *mandatory* filter derived server-side from the authenticated identity, never from the prompt or the LLM.
   3. **Post-check** returned document IDs against source permissions.
@@ -66,16 +66,15 @@ user ─► app (authenticated identity) ─► retrieve: mandatory ACL filter +
 ### Text-to-SQL agents need a semantic layer
 
 LLMs write plausible SQL against raw schemas but guess the joins, the grain, and what "active customer" means. A semantic layer encodes entities, joins, metrics, synonyms, and verified queries, so the agent picks a defined metric instead of inventing one ([§03](03-data-modeling.md)). The agent should also run as the user, so that row and column policies apply.
-- **Snowflake:** Cortex Analyst **(GA)** over semantic views **(GA)**. Snowflake Intelligence **(GA)** is the business-user front end, built on Cortex Agents **(GA)**.
-- **Databricks:** Genie uses table metadata, instructions, and example SQL. Recent docs call Genie spaces *Genie Agents* **(⚠ verify)**, and Unity Catalog metric views provide governed metrics **(⚠ verify status)**.
+- **Snowflake:** Cortex Analyst **(GA)** over semantic views **(GA)**; since Aug 2026 Snowflake recommends invoking it through Cortex Agents **(GA)**. Snowflake CoWork (formerly Snowflake Intelligence) **(GA)** is the business-user front end, built on Cortex Agents.
+- **Databricks:** Genie uses table metadata, instructions, and example SQL. Genie spaces were renamed *Genie Agents* in July 2026, and Unity Catalog metric views **(GA)** provide governed metrics.
 
 ### AI functions in SQL
 
 These run batch LLM inference as a SQL function: classify, extract, summarize, or filter millions of rows.
 - **Snowflake Cortex AI Functions:**
-  - **(GA):** AI_COMPLETE, AI_CLASSIFY, AI_EMBED, AI_SIMILARITY, AI_TRANSCRIBE, AI_EXTRACT, AI_PARSE_DOCUMENT.
-  - **(⚠ verify)** GA status: AI_FILTER and AI_AGG.
-- **Databricks:** task-specific AI Functions **(⚠ verify)** current list: `ai_classify`, `ai_extract`, `ai_summarize`, `ai_mask`. Also the general-purpose `ai_query` against serving endpoints, which manages parallelism and retries **(⚠ verify GA)**, and `ai_parse_document` **(Preview)**.
+  - **(GA):** AI_COMPLETE, AI_CLASSIFY, AI_EMBED, AI_SIMILARITY, AI_TRANSCRIBE, AI_EXTRACT, AI_PARSE_DOCUMENT, plus AI_FILTER and AI_AGG (GA since Jan 2026).
+- **Databricks:** task-specific AI Functions include `ai_classify`, `ai_extract`, `ai_summarize`, and `ai_mask`. Also the general-purpose `ai_query` against serving endpoints, which manages parallelism and retries **(GA)**, and `ai_parse_document` **(GA)**.
 - **Cost** scales with rows × tokens. Controls:
   - Apply cheap SQL predicates before the LLM.
   - Dedup inputs and send only the needed columns, truncated.
@@ -86,10 +85,10 @@ These run batch LLM inference as a SQL function: classify, extract, summarize, o
 
 ### What "AI-ready data" means
 
-- **Unstructured ingestion.** Files land in governed volumes or stages with metadata. They're parsed into text plus layout (AI_PARSE_DOCUMENT **(GA)** or `ai_parse_document` **(Preview)**), keeping page references for citations.
+- **Unstructured ingestion.** Files land in governed volumes or stages with metadata. They're parsed into text plus layout (AI_PARSE_DOCUMENT or `ai_parse_document`, both **(GA)**), keeping page references for citations.
 - **Quality.** Dedup and near-dup removal, boilerplate stripping, document versioning, and effective dates ("which policy is current?").
 - **Lineage.** Answer → retrieved chunks → document → source system.
-- **PII.** Classify and redact before embedding or calling external models (AI_REDACT and `ai_mask` **(⚠ verify)**), and propagate tags.
+- **PII.** Classify and redact before embedding or calling external models (AI_REDACT **(GA)** and `ai_mask`), and propagate tags.
 - **Semantics.** Table and column comments and metric definitions are now agent prompts, so they need to be maintained.
 - **Ownership.** Eval sets as versioned tables, plus freshness SLAs and named owners.
 
@@ -97,27 +96,27 @@ These run batch LLM inference as a SQL function: classify, extract, summarize, o
 
 MCP standardizes how agents call tools.
 - The Snowflake-managed MCP server **(GA)** exposes Cortex Search, Cortex Analyst, Cortex Agents, SQL, and custom tools under RBAC.
-- Databricks managed MCP servers **(Preview)** (Beta) expose UC functions, AI Search indexes, Genie, and Databricks SQL.
+- Databricks-provided MCPs run through Unity Gateway as UC securables: the Genie One MCP **(GA)**, plus Databricks SQL, sandbox, and web-search MCPs **(Preview)** (Beta). The older workspace managed MCP endpoints for UC functions, AI Search indexes, Genie Agents, and Databricks SQL are now legacy.
 
 An agent is a new principal, which has governance implications:
 - Prefer on-behalf-of-user OAuth over a broad service identity, and grant least privilege.
 - Audit every tool call.
 - Assume prompt injection through retrieved content, so gate write tools behind approval.
-- Put rate and cost limits in a gateway: Databricks AI Gateway, which includes guardrails **(Preview)**.
+- Put rate and cost limits in a gateway: Databricks Unity Gateway **(GA)**, which replaces AI Gateway (now legacy) and whose guardrail service policies are **(Preview)** (Beta).
 
 ## Comparison
 
 | Dimension | Snowflake Cortex | Databricks (Mosaic AI / Agent Bricks) |
 |---|---|---|
-| Models | Hosted multi-provider LLMs via AI functions and REST; region-dependent **(⚠ verify list)** | Foundation Model APIs (pay-per-token or provisioned throughput), external models via AI Gateway **(⚠ verify list)** |
-| Custom serving | Model Registry + Snowpark Container Services **(⚠ verify)** | Model Serving **(GA)** |
+| Models | Hosted multi-provider LLMs via AI functions and REST; region-dependent | Foundation Model APIs (pay-per-token or provisioned throughput), external models via Unity Gateway |
+| Custom serving | Model Registry + Snowpark Container Services | Model Serving **(GA)** |
 | Vector search | Cortex Search **(GA)**: hybrid + rerank, target lag | AI Search (ex-Vector Search): Delta Sync / Direct Access, hybrid, reranker |
-| Text-to-SQL | Cortex Analyst + semantic views **(GA)** | Genie / Genie Agents **(⚠ verify)**, metric views **(⚠ verify)** |
-| Agents | Cortex Agents, Snowflake Intelligence **(GA)** | Agent Bricks, some pages Beta **(⚠ verify)**; Knowledge Assistant and Supervisor Agent now legacy **(⚠ verify)** |
-| Features | Feature Store **(GA)**; online **(Preview)** | Feature Engineering in UC **(GA)**; online on Lakebase **(⚠ verify GA)** |
-| Governance | RBAC on services; Horizon policies on sources; MCP under RBAC | UC grants on models, indexes, functions; AI Gateway limits, usage tracking, inference tables |
-| Eval / observability | AI Observability **(⚠ verify)** | MLflow 3 **(GA)**: tracing, scorers, LLM judges |
-| Pricing | Credits; token-metered AI functions; search serving charges **(⚠ verify)** | DBUs; per-token or provisioned throughput; endpoint-based search **(⚠ verify)** |
+| Text-to-SQL | Cortex Analyst + semantic views **(GA)**, invoked via Cortex Agents | Genie Agents (ex-Genie spaces), metric views **(GA)** |
+| Agents | Cortex Agents, Snowflake CoWork (ex-Snowflake Intelligence) **(GA)** | Agent Bricks (code-first; CLI **(Preview)** (Beta)), Genie Agents for no-code; Knowledge Assistant and Supervisor Agent now legacy |
+| Features | Feature Store **(GA)**; online **(Preview)** | Feature Engineering in UC **(GA)**; online on Lakebase **(GA)** (Beta on GCP) |
+| Governance | RBAC on services; Horizon policies on sources; MCP under RBAC | UC grants on models, indexes, functions; Unity Gateway limits, usage tracking, inference tables |
+| Eval / observability | AI Observability **(GA)** | MLflow 3 **(GA)**: tracing, scorers, LLM judges |
+| Pricing | Credits; token-metered AI functions; search serving charges | DBUs; per-token or provisioned throughput; endpoint-based search |
 
 ## Interview questions
 
@@ -135,7 +134,7 @@ Cortex is SQL-first and managed: AI functions, Cortex Search, Analyst, and Agent
 
 **Q: How do you keep a vector index fresh and secure?**
 
-Drive it from the governed source table with incremental sync, monitor end-to-end lag against an SLA, and treat embedding-model changes as versioned backfills. Because indexes don't inherit per-user row policies by default **(⚠ verify)**, partition by audience or enforce server-side ACL filters, redact before embedding, and propagate deletions.
+Drive it from the governed source table with incremental sync, monitor end-to-end lag against an SLA, and treat embedding-model changes as versioned backfills. Because indexes don't inherit per-user row policies by default, partition by audience or enforce server-side ACL filters, redact before embedding, and propagate deletions.
 
 **Q: What does 'AI-ready data' mean concretely?**
 
@@ -196,3 +195,26 @@ The agent becomes a principal that can query and act. Use on-behalf-of-user auth
 - https://learn.microsoft.com/azure/databricks/ai-gateway
 - https://www.databricks.com/blog/azure-databricks-lakebase-generally-available
 - https://docs.databricks.com/aws/en/oltp/projects/sync-tables
+- https://docs.databricks.com/gcp/en/machine-learning/feature-store/online-feature-store
+- https://docs.databricks.com/aws/en/release-notes/product/2026/june
+- https://docs.databricks.com/aws/en/release-notes/product/2026/july
+- https://docs.databricks.com/aws/en/release-notes/product/2026/august
+- https://docs.databricks.com/aws/en/release-notes/product/2026/september
+- https://docs.databricks.com/aws/en/release-notes/product/2026/october
+- https://docs.databricks.com/aws/en/release-notes/product/2026/april
+- https://docs.databricks.com/aws/en/genie-agents/
+- https://docs.databricks.com/aws/en/agents/concepts/
+- https://docs.databricks.com/aws/en/agents/mcp-tools/built-in-mcp-services
+- https://docs.databricks.com/aws/en/ai-gateway/
+- https://docs.databricks.com/aws/en/ai-gateway/overview-serving-endpoints
+- https://docs.databricks.com/aws/en/uc-semantics/metric-views
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-01-22-ai-filter-ga
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-01-22-ai-agg-ai-summarize-agg-ga
+- https://docs.snowflake.com/en/release-notes/2025/other/2025-12-08-ai-redact-ga
+- https://docs.snowflake.com/en/release-notes/2025/other/2025-11-21-ai-complete-ga
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-08-28-cortex-analyst-transition-cortex-agents
+- https://docs.snowflake.com/en/user-guide/snowflake-cortex/snowflake-cowork
+- https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview
+- https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-costs
+- https://docs.snowflake.com/en/developer-guide/snowflake-ml/inference/inference-overview
+- https://docs.snowflake.com/en/release-notes/2025/other/2025-07-31-ai-observability-ga

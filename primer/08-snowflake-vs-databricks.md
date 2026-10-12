@@ -40,12 +40,12 @@ Details are in [§05](05-snowflake-architecture.md) and [§04](04-table-formats-
 
 | Gap being closed | Snowflake added | Databricks added |
 |---|---|---|
-| Code beyond SQL | Snowpark, notebooks, Snowpark Container Services, Snowpark Connect for Apache Spark (⚠ verify status) | native |
+| Code beyond SQL | Snowpark, notebooks, Snowpark Container Services, Snowpark Connect for Apache Spark **(GA)** | native |
 | SQL warehouse and BI | native | Databricks SQL, serverless SQL warehouses, Photon, AI/BI dashboards and Genie |
-| Open formats | Iceberg tables. Horizon Catalog Iceberg REST endpoint for external engines: reads **(GA)** Feb 2026, writes **(GA)** May 2026. Snowflake Open Catalog (managed Apache Polaris) | Delta UniForm. Unity Catalog managed and foreign Iceberg tables and Iceberg v3 **(GA)** |
+| Open formats | Iceberg tables. Horizon Catalog Iceberg REST endpoint for external engines: reads **(GA)** Feb 2026, writes **(GA)** May 2026. Snowflake Open Catalog (managed Apache Polaris) | Delta UniForm (docs now call it "Iceberg reads"). Unity Catalog managed and foreign Iceberg tables and Iceberg v3 **(GA)** May 2026 |
 | Managed ingestion | Openflow (Apache NiFi-based), BYOC and Snowflake-hosted **(GA)** | Lakeflow Connect |
 | OLTP next to analytics | Snowflake Postgres **(GA)** Feb 2026 | Lakebase **(GA)** Jan 2026 |
-| AI and semantics | Cortex AI, semantic views, Snowflake Intelligence **(GA)** Nov 2025 | AI/BI Genie, metric views, MLflow, model serving |
+| AI and semantics | Cortex AI, semantic views, Snowflake CoWork (formerly Snowflake Intelligence) **(GA)** Nov 2025 | AI/BI Genie, metric views, MLflow, model serving |
 | Less tuning | Gen2 warehouses **(GA)**, Adaptive Compute **(GA)** Jun 2026 | Serverless compute, predictive optimization, liquid clustering |
 | Governance | Horizon Catalog | Unity Catalog (open-sourced 2024) |
 
@@ -144,10 +144,10 @@ See [§12](12-governance-security.md).
 
 | Direction | Mechanism | Status |
 |---|---|---|
-| Databricks → Snowflake | Unity Catalog exposes managed Iceberg tables, or Delta tables with UniForm metadata, through its Iceberg REST endpoint. Snowflake connects via a catalog integration plus a **catalog-linked database**, which discovers tables automatically | Catalog-linked databases on external Iceberg REST catalogs **(GA)** Oct 2025. Snowflake writes to UC-managed Iceberg on Azure **(GA)** Apr 2026; other clouds (⚠ verify) |
-| Databricks → Snowflake, shared | Snowflake consumes a **Delta share** as a catalog-linked database in Horizon, converting its tables to Iceberg, with Horizon policies applied | **(GA)** Jul 2026. Provider-side constraints (UniForm required, deletion vectors unsupported) (⚠ verify) |
-| Delta files → Snowflake | **Delta Direct**: a catalog integration with `CATALOG_SOURCE = OBJECT_STORE` and `TABLE_FORMAT = DELTA` reads the Delta log from storage. It can't use a Delta definition held in UC or Glue | (⚠ verify) |
-| Snowflake → Databricks | External engines read Snowflake-managed Iceberg tables through Horizon's Iceberg REST endpoint. Databricks **catalog federation** reads those files directly, on Databricks compute | Horizon reads **(GA)** Feb 2026, writes **(GA)** May 2026. Databricks Snowflake catalog federation (⚠ verify) |
+| Databricks → Snowflake | Unity Catalog exposes managed Iceberg tables, or Delta tables with UniForm metadata, through its Iceberg REST endpoint. Snowflake connects via a catalog integration plus a **catalog-linked database**, which discovers tables automatically | Catalog-linked databases on external Iceberg REST catalogs **(GA)** Oct 2025. Snowflake writes to UC-managed Iceberg **(GA)** on AWS, and on Azure since Apr 2026; Google Cloud (⚠ verify) |
+| Databricks → Snowflake, shared | Snowflake consumes a **Delta share** (Databricks renamed Delta Sharing to OpenSharing in Jun 2026) as a catalog-linked database in Horizon, converting its tables to Iceberg, with Horizon policies applied | **(GA)** Jul 2026. Read-only in Snowflake, Delta tables only, and needs vended credentials or an external volume |
+| Delta files → Snowflake | **Delta Direct**: a catalog integration with `CATALOG_SOURCE = OBJECT_STORE` and `TABLE_FORMAT = DELTA` reads the Delta log from storage. It can't use a Delta definition held in UC or Glue | **(GA)**. Reads deletion vectors since Mar 2026 |
+| Snowflake → Databricks | External engines read Snowflake-managed Iceberg tables through Horizon's Iceberg REST endpoint. Databricks **catalog federation** reads those files directly, on Databricks compute | Horizon reads **(GA)** Feb 2026, writes **(GA)** May 2026. Databricks Snowflake catalog federation **(GA)** |
 | Snowflake native tables → Databricks | Lakehouse Federation **query federation**: read-only JDBC pushdown, so Snowflake compute runs the query and you pay both platforms | Fits exploratory or low-volume access, not bulk pipelines |
 | Neutral catalog | Both engines use Snowflake Open Catalog (managed Polaris) or another Iceberg REST catalog | Check per-engine feature coverage |
 
@@ -165,7 +165,7 @@ Fabric is Microsoft's SaaS analytics platform: Spark, a SQL warehouse, real-time
 
 - **OneLake** is one logical lake per tenant, with Delta Parquet as the native format and ADLS-compatible APIs. **Shortcuts** point to data in ADLS, S3, GCS or elsewhere in OneLake, with no copy.
 - **Mirroring** comes in several forms:
-  - **Snowflake mirroring (GA)** replicates a Snowflake database into OneLake as Delta, kept in sync in near real time. This is a copy. Mirroring storage is free up to a quota tied to capacity size (for example, F64 includes 64 TB).
+  - **Snowflake mirroring (GA)** replicates Snowflake native tables into OneLake as Delta, kept in sync in near real time. This is a copy; Iceberg tables are mirrored as metadata through shortcuts instead. Mirroring storage is free up to a quota tied to capacity size (for example, F64 includes 64 TB).
   - **Mirrored Azure Databricks catalog (GA)** mirrors Unity Catalog metadata and reads the same tables through shortcuts, so no data moves. Publishing a UC catalog to OneLake from the Azure Databricks side is **(Preview)**.
   - **OneLake–Snowflake interoperability (GA)** lets Snowflake store its managed Iceberg tables in OneLake and read Fabric tables as Iceberg.
 - **Capacity pricing.** An F SKU is a fixed pool of capacity units (CUs) shared by every Fabric workload. Usage is smoothed over time, and sustained overuse is throttled. Spend is predictable, but one workload can starve another unless you split capacities.
@@ -277,15 +277,31 @@ Applications need fast single-row reads and writes, which columnar engines handl
 - https://docs.snowflake.com/en/user-guide/warehouses-considerations
 - https://snowflake.com/legal-files/CreditConsumptionTable.pdf
 - https://docs.snowflake.com/en/release-notes.html
-- https://www.snowflake.com/en/blog/engineering/gen2-warehouses-snowflake-multicloud-ga/
+- https://docs.snowflake.com/en/release-notes/llms.txt
+- https://docs.snowflake.com/en/release-notes/2025/other/2025-05-05-gen2-standard-warehouses
+- https://docs.snowflake.com/en/user-guide/warehouses-gen2
+- https://docs.snowflake.com/en/user-guide/warehouses-adaptive
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-06-16-adaptive-compute-ga
+- https://docs.snowflake.com/en/user-guide/cost-understanding-compute
+- https://docs.snowflake.com/en/developer-guide/snowpark-connect/snowpark-connect-overview
 - https://docs.snowflake.com/release-notes/2025/other/2025-11-04-snowflake-intelligence
+- https://docs.snowflake.com/en/user-guide/snowflake-cortex/snowflake-cowork
+- https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-catalog-integration-delta-sharing
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-03-02-iceberg-delta-deletion-vectors
+- https://docs.snowflake.com/en/user-guide/tables-iceberg-externally-managed-writes
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-01-30-iceberg-microsoft-fabric-bidirectional-data-access-ga
 - https://docs.databricks.com/aws/en/external-access/iceberg
-- https://docs.databricks.com/aws/query-federation/snowflake-catalog-federation
+- https://docs.databricks.com/aws/en/delta/iceberg-reads
+- https://docs.databricks.com/aws/en/query-federation/snowflake-catalog-federation
+- https://docs.databricks.com/aws/en/query-federation/catalog-federation
 - https://docs.databricks.com/aws/en/query-federation/database-federation
 - https://docs.databricks.com/aws/en/release-notes/product/
+- https://docs.databricks.com/aws/en/release-notes/product/2026/june
 - https://learn.microsoft.com/en-us/azure/databricks/release-notes/product/
 - https://docs.databricks.com/aws/en/release-notes/lakebase/
 - https://learn.microsoft.com/en-us/azure/databricks/partners/bi/fabric
-- https://blog.fabric.microsoft.com/en/blog/announcing-the-general-availability-of-mirroring-for-snowflake-in-microsoft-fabric?ft=All
-- https://blog.fabric.microsoft.com/en-us/blog/microsoft-onelake-and-snowflake-interoperability-is-now-generally-available?ft=All
-- https://blog.fabric.microsoft.com/en/blog/databricks-unity-catalog-tables-available-in-microsoft-fabric?ft=All
+- https://learn.microsoft.com/en-us/fabric/mirroring/snowflake
+- https://learn.microsoft.com/en-us/fabric/mirroring/overview
+- https://learn.microsoft.com/en-us/fabric/mirroring/azure-databricks
+- https://learn.microsoft.com/en-us/fabric/onelake/onelake-iceberg-snowflake
+- https://learn.microsoft.com/en-us/fabric/fundamentals/direct-lake-overview
