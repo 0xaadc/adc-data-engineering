@@ -21,7 +21,7 @@ schema / contract tests (columns, types, compatibility)     <- cheapest, earlies
 Lower layers are cheap, deterministic and run early. Upper layers catch problems nobody anticipated, but they produce false positives.
 
 - **dbt:** generic and singular tests, unit tests, `store_failures`.
-- **Lakeflow Spark Declarative Pipelines** (formerly DLT): expectations with three actions.
+- **Lakeflow pipelines** (formerly DLT): expectations with three actions.
   - `expect` keeps rows and records metrics.
   - `expect_or_drop` drops violating rows.
   - `expect_or_fail` fails the update and rolls back atomically.

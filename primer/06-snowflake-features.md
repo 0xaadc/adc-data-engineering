@@ -121,7 +121,7 @@ A **share** is a set of grants (on databases, tables, secure views and secure UD
 - **Listings:** add terms and analytics. A listing can be private, or public on the **Marketplace**.
 - **Cross-region and cross-cloud:** storage isn't shared, so the data must be replicated, either through database replication plus a share or through **Cross-Cloud Auto-Fulfillment** on a listing. You pay for egress and target storage.
 - **Data Clean Rooms:** joins on overlapping data through approved query templates only, without exposing raw rows (GA; data providers need Enterprise Edition).
-- **Contrast with Delta Sharing (open):** the Delta Sharing server issues short-lived pre-signed file URLs, so any client can read and reach extends beyond Databricks. Snowflake's closed model needs Snowflake (or a reader account) on both ends. In exchange, row and masking policies apply live and no files are exposed (P11).
+- **Contrast with OpenSharing, formerly Delta Sharing (open):** the sharing server issues short-lived pre-signed file URLs, so any client can read and reach extends beyond Databricks. Snowflake's closed model needs Snowflake (or a reader account) on both ends. In exchange, row and masking policies apply live and no files are exposed (P11).
 
 ### Snowpark, containers, notebooks
 
@@ -159,7 +159,7 @@ Horizon is the umbrella for masking policies, row access policies, object tags w
 | Tasks | Lakeflow Jobs | SQL-native, serverless option |
 | Dynamic Tables | LDP materialized views / streaming tables | Target-lag scheduling over a DAG |
 | Snowpipe / Streaming | Auto Loader / Structured Streaming | Pipe-held dedupe; offset tokens |
-| Secure Data Sharing | Delta Sharing | Closed, zero-copy, live policies vs open protocol |
+| Secure Data Sharing | OpenSharing (formerly Delta Sharing) | Closed, zero-copy, live policies vs open protocol |
 | Snowpark | PySpark | SQL pushdown, no cluster, less control |
 | Hybrid tables / Postgres | Lakebase | OLTP beside the warehouse |
 

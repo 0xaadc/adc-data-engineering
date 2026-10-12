@@ -295,3 +295,13 @@ The real-time path uses event-time windows and a watermark, and its numbers are 
 - https://docs.databricks.com/aws/en/migration/lakebridge-agentic-converter
 - https://docs.snowflake.com/migrations/migration-skill/skill
 - https://www.snowflake.com/en/blog/engineering/real-time-change-data-capture-openflow/
+- https://docs.snowflake.com/en/user-guide/tables-iceberg-catalog-linked-database
+- https://docs.snowflake.com/en/user-guide/tutorials/tables-iceberg-set-up-bidirectional-access-to-unity-catalog
+- https://docs.snowflake.com/en/migrations/aim-for-datawarehouses/overview
+- https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
+- https://docs.databricks.com/aws/en/external-access/cross-engine-abac
+- https://docs.databricks.com/aws/en/data-governance/unity-catalog/filters-and-masks
+- https://docs.databricks.com/aws/en/release-notes/product/2026/october
+- https://docs.databricks.com/aws/en/migration/agentic-code-converter
+- https://docs.databricks.com/aws/en/data-governance/unity-catalog/external-lineage
+- https://docs.snowflake.com/en/release-notes/2026/other/2026-09-03-external-lineage-ga

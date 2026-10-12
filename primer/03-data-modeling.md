@@ -223,3 +223,7 @@ The *physical* tricks are fading: aggressive aggregate tables and snowflaked dim
 - https://ossie.apache.org/updates/ossie-enters-apache-incubator/
 - https://snowflake.com/en/blog/apache-ossie-open-semantic-interchange-incubator
 - https://www.dremio.com/blog/apache-ossie-the-open-semantic-interchange-joins-the-apache-incubator
+- https://docs.databricks.com/aws/en/uc-semantics/metric-views
+- https://docs.databricks.com/aws/en/release-notes/product/
+- https://docs.snowflake.com/en/user-guide/views-semantic/overview
+- https://ossie.apache.org/
