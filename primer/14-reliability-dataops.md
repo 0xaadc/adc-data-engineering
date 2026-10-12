@@ -26,9 +26,9 @@ Lower layers are cheap, deterministic and run early. Upper layers catch problems
   - `expect_or_drop` drops violating rows.
   - `expect_or_fail` fails the update and rolls back atomically.
 - **Great Expectations / Soda:** engine-agnostic checks, useful across both platforms.
-- **Snowflake Data Metric Functions:** system DMFs (nulls, duplicates, freshness, row count) and custom ones. They run on a schedule against expectations, write results to an event table, and send notifications. Anomaly detection covers volume and freshness only **(Preview ⚠ verify)**. Edition: Enterprise **(⚠ verify)**.
+- **Snowflake Data Metric Functions:** system DMFs (nulls, duplicates, freshness, row count) and custom ones. They run on a schedule against expectations, write results to an event table, and send notifications. Anomaly detection covers volume and freshness only **(Preview)**. Edition: Enterprise.
 - **Databricks data quality monitoring** has two parts:
-  - **Anomaly detection** builds per-table models of freshness and completeness, enabled per schema **(⚠ verify status)**.
+  - **Anomaly detection** builds per-table models of freshness and completeness, enabled per schema **(Preview)**.
   - **Data profiling** (formerly Lakehouse Monitoring) produces profile and drift metric tables.
 
 ### Block, warn or quarantine
@@ -68,8 +68,8 @@ To avoid alert fatigue:
 
 | Threat | Snowflake | Databricks |
 |---|---|---|
-| **Logical error** (bad DELETE, bad deploy) | Time Travel, `UNDROP`, Fail-safe (support-assisted recovery only); WORM **backups** **(GA, Dec 2025)**: immutable point-in-time backups that even privileged users can't alter. Details: [§06](06-snowflake-features.md) | Delta time travel and `RESTORE` (bounded by log retention and `VACUUM`); `UNDROP` for UC managed tables |
-| **Regional outage** | Replication groups (databases and shares on all editions); failover groups (account objects plus promotion: **Business Critical**); Client Redirect connection URL **(⚠ verify edition)** | **Managed disaster recovery** **(Preview, June 2026, gated)**: replicates UC metadata, managed table data and workspace assets; stable URL; failover reverses replication and pauses jobs in the old primary. Requirements: Enterprise (AWS), Premium + Mission Critical add-on (Azure). Otherwise DIY: deep clone or replication jobs, IaC to rebuild workspaces, re-create UC objects and grants. |
+| **Logical error** (bad DELETE, bad deploy) | Time Travel, `UNDROP`, Fail-safe (support-assisted recovery only); WORM **backups** **(GA, Dec 2025)**: point-in-time backups on all editions; with retention lock (Business Critical), not even ACCOUNTADMIN or ORGADMIN can delete them early. Details: [§06](06-snowflake-features.md) | Delta time travel and `RESTORE` (bounded by log retention and `VACUUM`); `UNDROP` for UC managed and external tables (7-day default recovery period) |
+| **Regional outage** | Replication groups (databases and shares on all editions); failover groups (account objects plus promotion: **Business Critical**); Client Redirect connection URL (**Business Critical**) | **Managed disaster recovery** **(Preview, June 2026, gated)**: replicates UC metadata, managed table data and workspace assets; stable URL; failover reverses replication and pauses jobs in the old primary. Requirements on both workspaces: Enterprise plan (AWS) or Premium (Azure), plus the Mission Critical add-on (Preview, gated) and serverless compute. Otherwise DIY: deep clone or replication jobs, IaC to rebuild workspaces, re-create UC objects and grants. |
 
 Points that come up in interviews:
 - **Replication is not backup.** Replication faithfully copies a bad DELETE to the secondary. You need both.
@@ -112,7 +112,7 @@ A breaking change is a new contract version, not an edit to the current one.
 | Capability | Snowflake | Databricks |
 |---|---|---|
 | Native quality checks | Data Metric Functions + expectations | Pipeline expectations; data quality monitoring |
-| Anomaly detection | DMF anomaly detection (volume, freshness) **(⚠ verify)** | Anomaly detection (freshness, completeness) **(⚠ verify)** |
+| Anomaly detection | DMF anomaly detection (volume, freshness) **(Preview)** | Anomaly detection (freshness, completeness) **(Preview)** |
 | Test data | Zero-copy clone | Shallow / deep clone |
 | Deploy tooling | DCM Projects **(GA)**, schemachange, Terraform, dbt | Declarative Automation Bundles, Terraform, dbt |
 | Logical recovery | Time Travel, UNDROP, WORM backups **(GA)** | Time travel, RESTORE, UNDROP |
@@ -179,3 +179,10 @@ Alert on SLO risk for tables that have real consumers, not on every failed check
 - https://learn.microsoft.com/en-us/azure/databricks/release-notes/product/
 - https://docs.snowflake.com/release-notes/2026/other/2026-08-07-dcm-projects-ga
 - https://docs.databricks.com/aws/pt/release-notes/dev-tools/bundles
+- https://docs.snowflake.com/en/user-guide/data-quality-anomaly
+- https://docs.snowflake.com/en/release-notes/2025/9_36
+- https://docs.databricks.com/aws/en/release-notes/product/2026/june
+- https://learn.microsoft.com/en-us/azure/databricks/admin/managed-disaster-recovery
+- https://docs.databricks.com/aws/en/release-notes/dev-tools/bundles
+- https://docs.databricks.com/aws/en/dev-tools/bundles/faqs
+- https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-ddl-undrop-table

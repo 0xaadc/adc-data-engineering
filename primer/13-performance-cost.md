@@ -14,9 +14,9 @@ Query cost is roughly bytes read × work per byte, plus idle time. Reduce bytes 
 
 - **Pruning.**
   - Snowflake prunes micro-partitions using per-column min/max metadata. When ingestion order doesn't match the filters people use, a clustering key plus Automatic Clustering (serverless, billed) restores pruning.
-  - Databricks has Hive-style partitions (coarse; only for low-cardinality columns), Z-order (legacy) and **liquid clustering** (incremental, and keys can be changed). Predictive optimization runs OPTIMIZE, VACUUM and ANALYZE on UC managed tables. `CLUSTER BY AUTO` picks the keys **(⚠ verify status)**.
+  - Databricks has Hive-style partitions (coarse; only for low-cardinality columns), Z-order (legacy) and **liquid clustering** (incremental, and keys can be changed). Predictive optimization runs OPTIMIZE, VACUUM and ANALYZE on UC managed tables. `CLUSTER BY AUTO` picks the keys on UC managed tables **(GA)**.
   - Details: [§05](05-snowflake-architecture.md), [§04](04-table-formats-catalogs.md).
-- **Data-skipping stats.** Delta collects min/max/null counts for the first 32 columns by default, so put filter columns early or set `delta.dataSkippingStatsColumns`. Snowflake keeps metadata for every column automatically.
+- **Data-skipping stats.** Delta collects min/max/null counts for the first 32 columns by default, so put filter columns early or set `delta.dataSkippingStatsColumns`. On UC managed tables, predictive optimization instead collects stats on the most-filtered columns, with no 32-column limit. Snowflake keeps metadata for every column automatically.
 - **Small-file problem.** Each file costs a metadata entry, a list and open call, footer parsing, and poor compression, because a tiny file holds few values per column chunk. Streaming micro-batches, over-partitioning and frequent small appends cause it.
   - Databricks fixes: `OPTIMIZE` (bin-packing), optimized writes and auto-compaction, `delta.targetFileSize`, predictive optimization, coarser partitions, and less frequent triggers.
   - Snowflake sizes micro-partitions itself. The analogue is loading: aim for files of roughly 100–250 MB compressed for COPY and Snowpipe.
@@ -51,7 +51,7 @@ A common misconception is that DBU spend is the whole Databricks bill. On classi
 - **Databricks.**
   - Custom tags on clusters, warehouses and jobs flow to `system.billing.usage.custom_tags` and to the cloud VMs.
   - Compute policies make tags mandatory.
-  - Budget policies tag serverless usage **(Preview ⚠ verify)**.
+  - Serverless usage policies (formerly budget policies) tag serverless usage **(Preview)**.
 
 **Showback vs chargeback.** Showback reports cost per team. It's cheap, drives behavior, and is where to start. Chargeback bills cost centers. It needs high tagging coverage and an agreed rule for shared costs (platform overhead, idle time, shared storage), or it turns into disputes. Move to chargeback once untagged spend is small and stable.
 
@@ -83,7 +83,7 @@ A common misconception is that DBU spend is the whole Databricks bill. On classi
 | Layout | Clustering keys + Automatic Clustering | Liquid clustering, predictive optimization |
 | File/partition sizing | Managed by the platform | `OPTIMIZE`, auto-compaction, target file size |
 | Concurrency | Multi-cluster warehouses | Warehouse autoscaling / serverless |
-| Attribution | Warehouse-per-team, object tags, `QUERY_TAG` | Custom tags, compute and budget policies |
+| Attribution | Warehouse-per-team, object tags, `QUERY_TAG` | Custom tags, compute and serverless usage policies |
 | Spend telemetry | `ACCOUNT_USAGE`, `ORGANIZATION_USAGE` | `system.billing.*` + cloud bill (classic) |
 
 ## Interview questions
@@ -98,7 +98,7 @@ Every file carries fixed overhead: a metadata entry, listing and open calls, foo
 
 **Q: How would you implement chargeback?**
 
-Make attribution structural rather than voluntary. Snowflake: warehouses per team, tags, and `QUERY_TAG` on shared warehouses. Databricks: mandatory tags through compute policies, and budget policies for serverless. Then publish an allocation rule for shared costs such as idle time, platform services and shared storage. Run showback for a few cycles until untagged spend is small and teams trust the numbers, then switch to chargeback. Chargeback on poor tagging produces arguments, not savings.
+Make attribution structural rather than voluntary. Snowflake: warehouses per team, tags, and `QUERY_TAG` on shared warehouses. Databricks: mandatory tags through compute policies, and serverless usage policies for serverless. Then publish an allocation rule for shared costs such as idle time, platform services and shared storage. Run showback for a few cycles until untagged spend is small and teams trust the numbers, then switch to chargeback. Chargeback on poor tagging produces arguments, not savings.
 
 **Q: Costs doubled last month. How do you investigate?**
 
@@ -139,3 +139,12 @@ Clustering pays off when a table is large, queries filter consistently on a few 
 - https://docs.databricks.com/gcp/admin/usage/budget-policies
 - https://docs.databricks.com/aws/en/release-notes/product/
 - https://www.databricks.com/blog/attribute-serverless-costs-departments-and-users-budget-policies
+- https://docs.databricks.com/aws/en/admin/usage/budget-policies
+- https://docs.databricks.com/aws/en/admin/account-settings/budgets
+- https://docs.databricks.com/aws/en/admin/system-tables/
+- https://docs.databricks.com/aws/en/delta/clustering
+- https://docs.databricks.com/aws/en/release-notes/product/2025/june
+- https://docs.databricks.com/aws/en/delta/data-skipping
+- https://docs.snowflake.com/en/user-guide/data-load-considerations-prepare
+- https://docs.snowflake.com/en/sql-reference/account-usage/query_attribution_history
+- https://docs.snowflake.com/en/user-guide/budgets
