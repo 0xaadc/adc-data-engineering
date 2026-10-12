@@ -51,10 +51,10 @@ _delta_log/
 ```
 
 - **State = replay.** Each commit is a JSON file of actions (`add`, `remove`, `metaData`, `protocol`). The current table is the latest checkpoint plus every JSON commit after it. The protocol states that "Delta files are the unit of atomicity."
-- **Atomic commit = create `N+1.json` only if it doesn't already exist.** This requires put-if-absent or mutual exclusion from storage. S3 historically lacked put-if-absent, so multi-cluster OSS writes needed a DynamoDB-backed LogStore (⚠ verify) or a commit service.
+- **Atomic commit = create `N+1.json` only if it doesn't already exist.** This requires put-if-absent or mutual exclusion from storage. S3 historically lacked put-if-absent, so multi-cluster OSS writes needed a DynamoDB-backed LogStore (`S3DynamoDBLogStore`, still marked experimental) or a commit service.
 - **Optimistic concurrency.** A writer reads version N, writes its data files (invisible until committed), then tries to create N+1. If another writer got there first, it checks whether the winning commits conflict with what it read (for example, a file it read was removed). If they don't conflict, it retries as N+2. If they do, it fails.
-- **Checkpoints.** A Parquet snapshot of the replayed state, written every 10 commits by default in OSS, so readers don't replay thousands of JSON files. V2 checkpoints add sidecar files and log compaction for very large logs.
-- **Catalog-managed tables (Preview in Delta 4.0).** The catalog, rather than the filesystem, becomes "the source of truth for whether a given commit attempt succeeded." This is Delta moving toward the Iceberg model of catalog arbitration.
+- **Checkpoints.** A Parquet snapshot of the replayed state, written every 10 commits by default in OSS, so readers don't replay thousands of JSON files. V2 checkpoints add sidecar files, and optional log compaction files help with very large logs.
+- **Catalog-managed tables (Preview in Delta 4.0, production-supported since Delta 4.1).** The catalog, rather than the filesystem, becomes "the source of truth for whether a given commit attempt succeeded." This is Delta moving toward the Iceberg model of catalog arbitration.
 - **Table features** (deletion vectors, column mapping, row tracking, variant, type widening, icebergCompat) gate which clients may read or write. Enabling one can lock out older readers.
 
 ### Apache Iceberg: a metadata tree with a catalog pointer
@@ -83,7 +83,7 @@ Catalog: db.orders ─► metadata/00042-<uuid>.metadata.json   ← the ONLY mut
 Hudi ("Hadoop Upserts Deletes and Incrementals") came out of Uber. The problem was applying a continuous stream of database changes (CDC) to a huge lake table without rewriting it on every batch.
 
 - **Timeline.** `.hoodie/` holds *instants* (`<time>.<action>.<state>`, moving from requested to inflight to completed) for commits, delta commits, compactions, cleans and rollbacks. A write is visible once its instant completes. Hudi 1.0 moved the timeline to an LSM layout and added **non-blocking concurrency control** for multiple concurrent streaming writers.
-- **Record keys and indexes.** Every row has a key. An index (bloom, bucket, or the **record-level index** in the metadata table) maps key to file group, so an upsert touches only the files that hold those keys. This is Hudi's core differentiator. Hudi 1.0 adds secondary indexes (plus expression indexes, ⚠ verify), and 1.1 adds a partitioned record index.
+- **Record keys and indexes.** Every row has a key. An index (bloom, bucket, or the **record-level index** in the metadata table) maps key to file group, so an upsert touches only the files that hold those keys. This is Hudi's core differentiator. Hudi 1.0 adds secondary indexes and expression indexes, and 1.1 adds a partitioned record index.
 - **Table types.** *Copy-on-write*: an update rewrites the base Parquet file. *Merge-on-read*: an update appends to row-based log files next to the base file, readers merge them, and async **compaction** folds the logs into a new base file.
 - **Incremental queries.** "Give me rows changed since instant T" is a first-class read, which makes downstream pipelines cheap (P5).
 
@@ -116,7 +116,7 @@ A catalog maps `catalog.schema.table` to the current metadata location, arbitrat
 - **Hive Metastore (HMS).** The Hadoop-era default: a Thrift service over an RDBMS that maps tables to directories and partitions to sub-directories. It tracks partitions, not files, so it can't make a multi-file write atomic. It still survives as a compatibility API.
 - **Iceberg REST Catalog spec.** An OpenAPI HTTP protocol and today's interop standard. `updateTable` sends *requirements* (for example `assert-ref-snapshot-id`) plus *updates*, so the server performs the CAS. `commitTransaction` commits multiple tables atomically. The spec also covers credential vending and server-side scan planning (`planTableScan`). Any engine that speaks REST can work with any catalog that implements it.
 - **Unity Catalog.** Databricks' governance catalog. It exposes an Iceberg REST endpoint for managed Iceberg tables and for Delta tables with UniForm. **Unity Catalog OSS** is Apache-2.0, an LF AI & Data sandbox project, and compatible with the HMS and Iceberg REST APIs. The OSS version has fewer features than the managed one.
-- **Apache Polaris.** An open-source Iceberg REST catalog, co-created by Snowflake and Dremio. **It graduated to an Apache top-level project in February 2026.** **Snowflake Open Catalog** is Snowflake's managed Polaris service. Polaris is reported to be integrated into **Horizon Catalog** (⚠ verify).
+- **Apache Polaris.** An open-source Iceberg REST catalog, co-created by Snowflake and Dremio. **It graduated to an Apache top-level project in February 2026.** **Snowflake Open Catalog** is Snowflake's managed Polaris service. Snowflake's docs state that Polaris is integrated into **Horizon Catalog**.
 - **Snowflake Horizon Catalog.** Snowflake's built-in governance catalog. It now exposes an Iceberg REST API so external engines can read **(GA)** and write **(GA, May 2026)** Snowflake-managed Iceberg tables, using Snowflake roles and policies and vended credentials.
 - **AWS Glue Data Catalog.** The AWS-native catalog, with an Iceberg REST endpoint. Snowflake can also connect directly to the **S3 Tables** Iceberg REST endpoint **(GA, Aug 2026)**.
 
@@ -124,10 +124,10 @@ A catalog maps `catalog.schema.table` to the current metadata location, arbitrat
 
 ### Interop: one copy, two engines
 
-- **Delta UniForm.** Generates Iceberg metadata (Hudi in older OSS releases) for a Delta table, asynchronously after each Delta commit, on the writer's compute. Several Delta commits may batch into one Iceberg commit. Iceberg clients get **read-only** access. The docs warn that an external Iceberg writer "may destroy your Delta table." UniForm with Iceberg v2 can't coexist with deletion vectors. The Iceberg v3 variant (`IcebergCompatV3`) supports them.
+- **Delta UniForm.** Generates Iceberg metadata (Hudi in older OSS releases) for a Delta table, asynchronously after each Delta commit, on the writer's compute. Several Delta commits may batch into one Iceberg commit. Iceberg clients get **read-only** access. The docs warn that an external Iceberg writer "may destroy your Delta table." UniForm with Iceberg v2 can't coexist with deletion vectors. The Iceberg v3 variant (`IcebergCompatV3`) supports them **(GA on Databricks, May 2026; experimental in OSS Delta 4.3)**.
 - **Databricks managed Iceberg tables (GA, May 2026 per release notes).** Native Iceberg tables in Unity Catalog, with liquid clustering and predictive optimization. External engines read and write through UC's Iceberg REST endpoint. **Foreign Iceberg tables** (Iceberg tables whose catalog of record is Glue, Snowflake or similar, read from Databricks) are also GA.
 - **Snowflake Iceberg tables.** *Snowflake-managed* tables use Snowflake as the catalog and Snowflake runs maintenance. *Externally managed* tables use a catalog integration (Glue, Open Catalog/Polaris, any Iceberg REST catalog) as the catalog of record. **Catalog-linked databases** auto-discover a remote REST catalog's namespaces and tables, with DML on externally managed tables **(GA, Oct 2025)**.
-- **Apache XTable** (incubating since 2024). Translates metadata between Delta, Iceberg and Hudi without copying data. Deletion-vector support is still on its roadmap.
+- **Apache XTable** (incubating since 2024). Translates metadata between Delta, Iceberg and Hudi without copying data. It syncs only copy-on-write or read-optimized views, so Delta/Iceberg deletion vectors and Hudi log files aren't captured.
 
 Failure modes of "one copy, two engines":
 
@@ -147,7 +147,7 @@ Failure modes of "one copy, two engines":
 | Atomic commit | Put-if-absent of `N+1.json` (or catalog-managed) | Catalog CAS of metadata pointer | Instant completion; lock provider / NBCC for multi-writer |
 | Partitioning | Hive-style columns; liquid clustering | Hidden transforms; partition evolution | Hive-style partition paths |
 | Row-level change | COW; deletion vectors | v2 delete files; v3 deletion vectors | COW or MOR table types; record-level index |
-| Schema evolution | Add/widen; rename/drop needs column mapping | Field IDs: rename/drop/reorder safe | Avro-schema based; additive by default (⚠ verify) |
+| Schema evolution | Add/widen; rename/drop needs column mapping | Field IDs: rename/drop/reorder safe | Backward-compatible (add/promote) on write; rename/drop via experimental schema-on-read |
 | Time travel | Version/timestamp, bounded by VACUUM and log retention | Snapshot ID/timestamp, branches and tags | Instant time; incremental queries |
 | Sweet spot | Spark/Databricks-centric batch + streaming | Multi-engine, catalog-centric interop | High-rate upserts/CDC, incremental pulls |
 
@@ -175,7 +175,7 @@ The writer creates all new data and metadata files, which nobody can see yet, an
 
 **Q: How does Delta commit on object storage, and why was S3 a problem?**
 
-A commit is the creation of the next numbered JSON file in `_delta_log`, and it must fail if that file already exists. S3 didn't originally offer put-if-absent, so two clusters could both "win" version N+1. OSS Delta solved this with a DynamoDB-backed log store (⚠ verify), and Databricks with its own commit service. Delta 4.0's catalog-managed tables (Preview) hand commit arbitration to the catalog, which is the same direction Iceberg took.
+A commit is the creation of the next numbered JSON file in `_delta_log`, and it must fail if that file already exists. S3 didn't originally offer put-if-absent, so two clusters could both "win" version N+1. OSS Delta solved this with a DynamoDB-backed log store (still marked experimental), and Databricks with its own commit service. Catalog-managed tables (Preview in Delta 4.0, production-supported since 4.1) hand commit arbitration to the catalog, which is the same direction Iceberg took.
 
 **Q: Copy-on-write vs merge-on-read?**
 

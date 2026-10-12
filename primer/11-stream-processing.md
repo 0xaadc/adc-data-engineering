@@ -78,7 +78,7 @@ State is what operators remember between records: aggregates, open windows, join
 
 - **Storage.** JVM-heap maps hit GC pauses and memory limits. **RocksDB** (embedded LSM key-value store on local disk) is the standard choice for large state in Spark, Flink and Kafka Streams; on Databricks it is the default provider from DBR 17.3. Flink 2.0 added opt-in **disaggregated state** (ForSt: object storage is primary, local disk is a cache, with async state access), which decouples state size from local disk and speeds up rescaling.
 - **Size and TTL.** State ≈ keys × bytes per key × retention. Bound it with watermarks (window and join state expire), or with TTL for keyed state that never closes on its own (Flink `StateTtlConfig` / `table.exec.state.ttl`; Spark `transformWithState` TTL).
-- **Custom stateful logic.** Spark `transformWithState` (DBR 16.2+; Apache Spark 4.0 ⚠ verify OSS version) replaces `mapGroupsWithState`. It has multiple typed state variables, TTL and timers. Flink's equivalent is `KeyedProcessFunction`.
+- **Custom stateful logic.** Spark `transformWithState` (DBR 16.2+; Apache Spark 4.0) replaces `mapGroupsWithState`. It has multiple typed state variables, TTL and timers. Flink's equivalent is `KeyedProcessFunction`.
 
 **Joins, cheapest to most expensive:**
 - **Stream–static**: each micro-batch joins against the table's current snapshot. Stateless and cheap, but *not time-consistent*: a replay sees today's dimension values.
@@ -87,7 +87,7 @@ State is what operators remember between records: aggregates, open windows, join
 
 **Dedup:** `dropDuplicates(key)` alone remembers every key forever, so bound it:
 - Key on a stable, producer-assigned event id.
-- In-stream, add event time plus a watermark, or use `dropDuplicatesWithinWatermark` (Spark 3.5+ ⚠ verify version). Set the delay longer than the maximum gap between duplicates.
+- In-stream, add event time plus a watermark, or use `dropDuplicatesWithinWatermark` (Spark 3.5+). Set the delay longer than the maximum gap between duplicates.
 - At the sink, a keyed MERGE is the correctness backstop.
 
 ### Fault tolerance: checkpoints and savepoints
@@ -135,7 +135,7 @@ Retries make duplicate *delivery* unavoidable. What engines achieve is an **exac
 
 - **Spark Structured Streaming.** Micro-batch: each trigger is a small batch job, using the same DataFrame/SQL API as batch. It is the native engine under Auto Loader and Lakeflow on Databricks.
 
-  **Real-time mode (Preview)** is a new trigger, available on Databricks from DBR 16.4 LTS and in Apache Spark 4.1 (Dec 2025). How it works:
+  **Real-time mode (GA on Databricks since Mar 2026)** is a new trigger, available on Databricks from DBR 16.4 LTS and in Apache Spark 4.1 (Dec 2025). How it works:
   - batches are long-running (the interval, default 5 min, is the *checkpoint* cadence)
   - all stages are scheduled at once
   - a streaming shuffle passes records between stages as they are produced
@@ -143,25 +143,25 @@ Retries make duplicate *delivery* unavoidable. What engines achieve is an **exac
 
   Limits on Databricks:
   - update mode only
-  - classic compute with autoscaling and Photon off (⚠ verify current compute matrix)
+  - classic compute (dedicated, or standard for Python only; no serverless) with autoscaling and Photon off
   - Kafka/Kinesis/Event Hubs sources only
-  - no Delta source or sink, no stream–stream joins, no session windows
+  - no Delta source or sink, no session windows, no stream–stream outer joins (inner joins need DBR 18 LTS+ and extra config)
   - no event-time timers in `transformWithState`
 
-  The OSS 4.1 version is stateless-only. Legacy `Trigger.Continuous` is not supported on Databricks.
-- **Apache Flink.** Pipelined, record-at-a-time, with the richest event-time and state model (timers, allowed lateness, side outputs, temporal joins, CEP) and good large-state handling. The cost is more operational work. Flink 2.0 (Mar 2025) removed the DataSet and Scala APIs and made Java 17 the default. Flink 2.1 and 2.2 added `ML_PREDICT` and improved **materialized tables** (a query plus a freshness target, and the engine maintains it). Managed options: Confluent Cloud for Apache Flink, Amazon Managed Service for Apache Flink, Ververica.
+  The OSS 4.1 version is Scala and stateless-only; Spark 4.2 (Jul 2026) adds the PySpark trigger. Legacy `Trigger.Continuous` is not supported on Databricks.
+- **Apache Flink.** Pipelined, record-at-a-time, with the richest event-time and state model (timers, allowed lateness, side outputs, temporal joins, CEP) and good large-state handling. The cost is more operational work. Flink 2.0 (Mar 2025) removed the DataSet and Scala APIs and made Java 17 the default. Flink 2.1 added `ML_PREDICT`, and 2.2 and 2.3 (Jun 2026) improved **materialized tables** (a query plus a freshness target, and the engine maintains it). Managed options: Confluent Cloud for Apache Flink, Amazon Managed Service for Apache Flink, Ververica.
 - **Kafka Streams.** A JVM **library** with no cluster. Its state lives in local RocksDB backed by Kafka **changelog topics**.
-- **SQL-first.** ksqlDB and Flink SQL (Confluent now emphasizes Flink; ⚠ verify ksqlDB status). **Streaming databases** (RisingWave, Materialize) serve always-fresh queryable views over the Postgres protocol (P10).
+- **SQL-first.** ksqlDB and Flink SQL (on Confluent Cloud, Flink is recommended for new workloads; ksqlDB stays supported for existing apps). **Streaming databases** (RisingWave, Materialize) serve always-fresh queryable views over the Postgres protocol (P10).
 
 ### Landing streams in the lakehouse and warehouse
 
 **Databricks** ([§07](07-databricks-gap-fill.md)):
 - **Sources.** Read Kafka directly (`format("kafka")`), or use **Auto Loader** for files.
-- **Lakeflow Spark Declarative Pipelines** (formerly DLT) declare **streaming tables** and materialized views. Pipelines run *triggered* or *continuous*, and real-time mode in pipelines is (Preview).
+- **Lakeflow pipelines** (formerly DLT; they extend Apache Spark Declarative Pipelines) declare **streaming tables** and materialized views. Pipelines run *triggered* or *continuous*, and real-time mode in pipelines is (Preview).
 - **Triggers are the cost dial:**
   - default or `processingTime`: always-on.
   - `availableNow`: drain the backlog, then stop. It is the only kind serverless supports, besides the deprecated `Once`.
-  - `realTime`: (Preview).
+  - `realTime`: (GA), classic compute only.
 - **Small-file flood.** Each micro-batch commits at least one file per writing task. Mitigate with:
   - longer triggers
   - optimized writes
@@ -172,15 +172,15 @@ Retries make duplicate *delivery* unavoidable. What engines achieve is an **exac
 
 | Path | Mechanism | Typical latency |
 |---|---|---|
-| Kafka connector v3, Snowpipe (file) mode | Buffer to files, stage, Snowpipe load | ~1–several min (flush default ~120 s, min 10 s ⚠ verify) |
+| Kafka connector v3, Snowpipe (file) mode | Buffer to files, stage, Snowpipe load | ~1–several min (flush default 120 s, min 10 s) |
 | Kafka connector v3, Snowpipe Streaming *classic* | Row inserts into channels; `buffer.flush.time` default 10 s, min 1 s | seconds |
 | **Kafka connector v4 (GA Apr 2026)** | Rewrite on the high-performance architecture: server-side validation, schema evolution and COPY-style transforms in a `PIPE` object; exactly-once, ordered; per-GB pricing; up to 10 GB/s per table (vendor figure) | 5–10 s |
 | **Snowpipe Streaming high-performance SDK / REST** (GA AWS Sep 2025, Azure and GCP Nov 2025) | Your app writes rows to channels; new Java/Python SDK or REST API required | < 10 s typical |
-| **Openflow** (GA May 2025; Kafka connector status ⚠ verify) | Managed, NiFi-based integration; an alternative to self-run Kafka Connect | connector-dependent |
+| **Openflow** (GA May 2025; its Kafka connector is GA) | Managed, NiFi-based integration; an alternative to self-run Kafka Connect | connector-dependent |
 
 Downstream:
 - **Dynamic Tables**: declarative, minimum `TARGET_LAG` 60 s, best-effort.
-- **Streams + triggered Tasks**: `WHEN SYSTEM$STREAM_HAS_DATA`, skipped when the stream is empty. The interval can be lowered to 10 s (default ⚠ verify).
+- **Streams + triggered Tasks**: `WHEN SYSTEM$STREAM_HAS_DATA`, skipped when the stream is empty. They run at most every 30 s by default; `USER_TASK_MINIMUM_TRIGGER_INTERVAL_IN_SECONDS` lowers that to 10 s.
 
 A curated Snowflake table is realistically **≥ ~1 min** fresh; a raw landing table is seconds.
 
@@ -210,7 +210,7 @@ A curated Snowflake table is realistically **≥ ~1 min** fresh; a raw landing t
 
 | | Spark Structured Streaming | Apache Flink | Kafka Streams | Streaming DB (RisingWave, Materialize) |
 |---|---|---|---|---|
-| Execution | Micro-batch; real-time mode (Preview) | Pipelined, record-at-a-time | Record-at-a-time in app threads | Incremental view maintenance |
+| Execution | Micro-batch; real-time mode (GA) | Pipelined, record-at-a-time | Record-at-a-time in app threads | Incremental view maintenance |
 | Typical latency | ~1 s to minutes; ms in real-time mode | ms to sub-second | ms | sub-second to seconds |
 | State | Per-partition RocksDB store, checkpointed per batch | Keyed state (heap/RocksDB/ForSt), barrier snapshots | Local RocksDB + changelog topics | Managed internally |
 | Event-time depth | Watermarks, windows, `transformWithState` timers | Richest: lateness, side outputs, temporal joins, CEP | Windows, grace periods | SQL semantics |
@@ -247,7 +247,7 @@ Exactly-once needs a replayable source, deterministic checkpointed processing, a
 
 **Q: Flink vs Spark Structured Streaming: when each?**
 
-On a Databricks lakehouse, Spark is my default: one API for batch and stream, Delta-native exactly-once, managed operations, and seconds-to-minutes latency. Flink wins when you need sub-second latency *and* heavy event-time logic: large keyed state, timers, temporal joins, CEP, Kafka-to-Kafka services. Spark's real-time mode (Preview) narrows the latency gap but still excludes stream–stream joins, session windows and Delta sinks. Flink's cost is a second platform, so I'd prefer a managed service.
+On a Databricks lakehouse, Spark is my default: one API for batch and stream, Delta-native exactly-once, managed operations, and seconds-to-minutes latency. Flink wins when you need sub-second latency *and* heavy event-time logic: large keyed state, timers, temporal joins, CEP, Kafka-to-Kafka services. Spark's real-time mode (GA on Databricks) narrows the latency gap but still excludes stream–stream outer joins, session windows and Delta sinks. Flink's cost is a second platform, so I'd prefer a managed service.
 
 **Q: Kafka Streams vs Flink?**
 
@@ -313,3 +313,20 @@ It's mechanical: each micro-batch commits at least one file per writing task. Le
 - https://docs.aws.amazon.com/managed-flink/latest/java/flink-2-2.html
 - https://www.vldb.org/pvldb/vol18/p4846-mei.pdf
 - https://www.confluent.io/press-release/Tableflow-powers-real-time-AI-across-clouds/
+- https://docs.databricks.com/aws/en/structured-streaming/real-time/concepts
+- https://docs.databricks.com/aws/en/structured-streaming/real-time/setup
+- https://www.databricks.com/blog/announcing-general-availability-real-time-mode-apache-spark-structured-streaming-databricks
+- https://docs.databricks.com/aws/en/release-notes/product/2026/may
+- https://docs.databricks.com/aws/en/structured-streaming/rocksdb-state-store
+- https://docs.databricks.com/aws/en/ldp/
+- https://spark.apache.org/releases/spark-release-3-5-0.html
+- https://spark.apache.org/releases/spark-release-4-0-0.html
+- https://spark.apache.org/releases/spark-release-4-1-0.html
+- https://spark.apache.org/releases/spark-release-4-2-0.html
+- https://docs.snowflake.com/en/user-guide/kafka-connector-install
+- https://github.com/snowflakedb/snowflake-kafka-connector/blob/v3.1.0/src/main/java/com/snowflake/kafka/connector/SnowflakeSinkConnectorConfig.java
+- https://docs.snowflake.com/en/user-guide/data-integration/openflow/connectors/kafka/about
+- https://flink.apache.org/2025/03/24/apache-flink-2.0.0-a-new-era-of-real-time-data-processing/
+- https://flink.apache.org/2026/06/25/apache-flink-2.3.0-release-announcement/
+- https://docs.confluent.io/cloud/current/topics/tableflow/overview.html
+- https://docs.confluent.io/cloud/current/ksqldb/overview.html

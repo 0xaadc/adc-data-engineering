@@ -21,7 +21,7 @@ Use RBAC for reach ("can you use this schema?") and ABAC for visibility ("which 
 
 ### Snowflake role hierarchy
 
-- **System roles.** ACCOUNTADMIN for a few people with MFA. SECURITYADMIN manages grants. USERADMIN manages users and roles. SYSADMIN owns warehouses and databases. ORGADMIN and PUBLIC also exist. Objects are owned by roles, not users.
+- **System roles.** ACCOUNTADMIN for a few people with MFA. SECURITYADMIN manages grants. USERADMIN manages users and roles. SYSADMIN owns warehouses and databases. GLOBALORGADMIN (in the organization account; ORGADMIN is being phased out) and PUBLIC also exist. Objects are owned by roles, not users.
 - **Access roles and functional roles.** Access roles hold object privileges (`SALES_RO`). Functional roles (`ANALYST_SALES`) are made of access roles. Only functional roles go to users, synced from the IdP through SCIM. Roll custom roles up to SYSADMIN.
 - **Future grants** cover tables that don't exist yet.
 - **Managed access schemas** take grant authority away from object owners, which centralizes control.
@@ -51,15 +51,15 @@ A policy is a function the engine injects into the plan at query time. A row fil
   - *Aggregation policies* return only aggregates above a minimum group size **(GA)**.
 - **Databricks.**
   - Per-table *row filters* and *column masks* are SQL UDFs.
-  - *ABAC policies* **(GA, April 2026)** are defined at catalog or schema scope on governed tags and apply to every matching table, materialized view and streaming table.
-  - ABAC needs serverless or DBR 16.4+; older runtimes can't read ABAC-secured tables. Policies can't attach directly to views. Two distinct filters or masks resolving for the same user and object cause an error, so design policies that don't overlap.
+  - *ABAC policies* **(GA, April 2026)** are attached at catalog, schema or table scope (metastore scope in Beta) on governed tags and apply to every matching table, materialized view and streaming table.
+  - ABAC needs serverless or DBR 16.4+; older runtimes can't read ABAC-secured tables. Policies on views are Beta (DBR 19+). Two distinct filters or masks resolving for the same user and object cause an error, so design policies that don't overlap.
 - **Performance.** Policies run on every query. A mapping-table lookup becomes a join on every read, complex UDFs can block pruning and caching, and masking a join key can change join results. Keep policies simple and deterministic, and benchmark them under realistic roles.
 
 ### Classification and tags
 
 You can't protect columns you haven't found. Classifiers sample values, infer categories (email, national ID) and apply tags.
 
-- **Snowflake.** *Automatic sensitive data classification* **(GA, 2025)** uses a classification profile on a database or schema that sets the schedule and can auto-apply tags. Those tags then trigger tag-based masking. Automatic tag propagation to derived objects is newer **(⚠ verify status)**.
+- **Snowflake.** *Automatic sensitive data classification* **(GA, 2025)** uses a classification profile on a database or schema that sets the schedule and can auto-apply tags. Those tags then trigger tag-based masking. Automatic tag propagation to derived objects is newer **(GA, May 2025)**.
 - **Databricks.** *Governed tags* **(GA)** are account-level definitions that control allowed values and who may assign them. *Data Classification* **(GA, April 2026)** tags UC tables, and ABAC policies key off those tags. Scanning views is **(Beta, Sept 2026)**.
 
 Tags plus policies scale because you write one policy per sensitivity class instead of per-column grants. New tagged columns are protected immediately, and "who can see PII?" becomes a query. Classifiers miss free-text and JSON fields, so require producers to tag at creation as part of the contract.
@@ -92,8 +92,8 @@ Both platforms encrypt at rest and in transit by default. The layers above that:
 
 | Layer | Snowflake | Databricks |
 |---|---|---|
-| Private connectivity | PrivateLink / Private Link / PSC: **Business Critical**+. Network policies and rules on all editions. | Front-end and back-end PrivateLink, customer-managed VPC, secure cluster connectivity: **Enterprise** tier (AWS/GCP). Azure: Premium **(⚠ verify)**. |
-| Customer keys | **Tri-Secret Secure** builds a composite key from a Snowflake key and a customer KMS key. Revoking yours makes the data unreadable. Business Critical **(⚠ verify)**. | CMK for managed services and storage: Enterprise tier (AWS/GCP). |
+| Private connectivity | PrivateLink / Private Link / PSC: **Business Critical**+. Network policies and rules on all editions. | Front-end and back-end PrivateLink (needs a customer-managed VPC): **Enterprise** tier (AWS/GCP). Azure: Premium. Secure cluster connectivity is the default for new workspaces. |
+| Customer keys | **Tri-Secret Secure** builds a composite key from a Snowflake key and a customer KMS key. Revoking yours makes the data unreadable. Business Critical. | CMK for managed services and storage: Enterprise tier (AWS/GCP). |
 | Posture | **Trust Center** scanner packages (Security Essentials on by default, CIS Benchmarks) | Compliance security profile, enhanced security monitoring |
 
 CMK is a kill switch you also own. Rotation, and the outage you cause if you lose the key, are your problem.
@@ -187,3 +187,15 @@ Treat it as a governance failure, because shadow copies have no masking, lineage
 - https://docs.snowflake.com/en/release-notes/2024/other/2024-05-03-policies
 - https://docs.snowflake.com/en/user-guide/admin-security-privatelink
 - https://docs.snowflake.com/en/user-guide/trust-center/overview
+- https://docs.snowflake.com/en/user-guide/security-access-control-overview
+- https://docs.snowflake.com/en/user-guide/access-history
+- https://docs.snowflake.com/en/release-notes/2025/other/2025-05-14-tag-propagation
+- https://docs.snowflake.com/en/user-guide/object-tagging/propagation
+- https://docs.snowflake.com/en/user-guide/security-encryption-tss
+- https://docs.databricks.com/aws/en/data-governance/unity-catalog/abac/
+- https://docs.databricks.com/aws/en/admin/system-tables/
+- https://docs.databricks.com/aws/en/security/keys/customer-managed-keys
+- https://docs.databricks.com/aws/en/security/network/classic/privatelink
+- https://docs.databricks.com/aws/en/security/network/classic/secure-cluster-connectivity
+- https://docs.databricks.com/gcp/en/security/network/classic/private-service-connect
+- https://learn.microsoft.com/en-us/azure/databricks/security/network/classic/private-link-standard

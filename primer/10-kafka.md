@@ -47,13 +47,13 @@ Two defaults surprise people:
 A **rebalance** reassigns partitions in three situations: a member joins or leaves, a member misses heartbeats for `session.timeout.ms` (45 s), or a member exceeds `max.poll.interval.ms` (5 min) between polls. That last case means slow processing looks the same as a crash. The classic protocol's eager mode revoked every partition from every member, which stopped the whole group. The fixes:
 - **Cooperative sticky assignment** moves only the partitions that change hands.
 - **Static membership** (`group.instance.id`) lets a member restart without a rebalance.
-- **KIP-848 (GA in 4.0)** moves assignment to the broker, which reconciles members incrementally. Clients opt in with `group.protocol=consumer`. Classic is still the client default, and KIP-1274 plans its deprecation.
+- **KIP-848 (GA in 4.0)** moves assignment to the broker, which reconciles members incrementally. Clients opt in with `group.protocol=consumer`. Classic is still the client default, and KIP-1274 plans to switch the default and deprecate classic in 5.0.
 
 **Consumer lag** (log-end offset minus committed offset) is the main health metric. Track it in seconds and watch its trend.
 
 ### Share groups: queues for Kafka (KIP-932)
 
-Consumer groups cap parallelism at the partition count, and a slow record blocks its partition. Job-style work needs more workers and acks for each message. **Share groups** allow any number of consumers on the same partitions. The broker leases records under time-limited locks. Consumers accept, release or reject each record, and a delivery-count limit retires poison messages. You give up ordering and get at-least-once delivery. Share groups were early access in 4.0 and became **production-ready in 4.2 (GA, early 2026)**. Use 4.2.1 or later, which fixes a deadlock. Managed-service support varies (⚠ verify).
+Consumer groups cap parallelism at the partition count, and a slow record blocks its partition. Job-style work needs more workers and acks for each message. **Share groups** allow any number of consumers on the same partitions. The broker leases records under time-limited locks. Consumers accept, release or reject each record, and a delivery-count limit retires poison messages. You give up ordering and get at-least-once delivery. Share groups were early access in 4.0 and became **production-ready in 4.2 (GA, early 2026)**. Use 4.2.1 or later, which fixes a deadlock. Managed-service support varies: Confluent Cloud has them GA on Enterprise and Dedicated clusters (Java clients only), MSK doesn't yet support them on Express brokers, and Event Hubs doesn't list them as a supported Kafka feature.
 
 ### Replication, ISR, acks, KRaft
 
@@ -84,7 +84,7 @@ This is **stream–table duality**: a table is the latest value per key of a cha
 
 ### Producer semantics and delivery guarantees
 
-- **Batching:** records accumulate per partition until `batch.size` (16 KB) fills or `linger.ms` passes. The `linger.ms` default became 5 ms in 4.0 (⚠ verify). Bigger batches trade latency for throughput and compression (P7).
+- **Batching:** records accumulate per partition until `batch.size` (16 KB) fills or `linger.ms` passes. The `linger.ms` default became 5 ms in 4.0. Bigger batches trade latency for throughput and compression (P7).
 - **Idempotent producer (default since 3.0, KIP-679):** a lost ack triggers a retry, which would otherwise create a duplicate. The broker assigns a **producer ID**, the producer numbers batches per partition with **sequence numbers**, and the broker drops duplicates, keeping order with up to 5 requests in flight. This covers one producer session only, and an explicit `acks=1` disables it.
 - **Transactions:** a stable `transactional.id` lets a producer write to many partitions **and** commit consumer offsets atomically. Commit and abort markers go into each partition, and an epoch **fences zombie** producers. Consumers need `isolation.level=read_committed`, because the default `read_uncommitted` also returns aborted data.
 
@@ -98,7 +98,7 @@ EOS (exactly-once semantics) stops at Kafka's boundary. Database writes, API cal
 
 ### Schema Registry and formats
 
-Kafka stores bytes, and producers and consumers deploy independently, so the schema is the contract between them (P8). Without one, a renamed field breaks consumers or produces poison pills. The registry versions schemas per **subject** (by default `<topic>-value`). Serializers prefix each message with a magic byte and a **4-byte schema ID**. Deserializers fetch the schema by ID and cache it. Compatibility is enforced **when a new schema version is registered**:
+Kafka stores bytes, and producers and consumers deploy independently, so the schema is the contract between them (P8). Without one, a renamed field breaks consumers or produces poison pills. The registry versions schemas per **subject** (by default `<topic>-value`). Serializers prefix each message, by default, with a magic byte and a **4-byte schema ID**. Deserializers fetch the schema by ID and cache it. Compatibility is enforced **when a new schema version is registered**:
 
 | Mode | Guarantee | Safe change | Deploy first |
 |---|---|---|---|
@@ -114,7 +114,7 @@ BACKWARD is the default because an upgraded consumer can then rewind to the star
 Connect replaces each team's hand-written "table→Kafka" and "Kafka→S3" code. **Workers** run **connectors**, which split into **tasks**. In distributed mode the workers form a group and keep configs, offsets and status in compacted topics, so the workers themselves are stateless and tasks fail over to other workers.
 - **Source and sink:** source connectors track their position in the external system (for example a binlog offset), and sink connectors use consumer-group offsets.
 - **Converters and SMTs:** converters serialize, for example Avro with the registry. **SMTs** (single message transforms) apply stateless per-record changes such as rename, mask, route or set-key. Joins belong in [§11](11-stream-processing.md).
-- **DLQ:** sink connectors with `errors.tolerance=all` and `errors.deadletterqueue.topic.name` divert bad records to a dead-letter topic, with the error context in headers.
+- **DLQ:** sink connectors with `errors.tolerance=all` and `errors.deadletterqueue.topic.name` divert bad records to a dead-letter topic. Error context goes in headers only if `errors.deadletterqueue.context.headers.enable=true` (default false).
 - **When to use it:** use Connect when a mature connector exists, and write custom code for business-specific or stateful logic. In Databricks terms, Auto Loader plays the same role for files.
 
 ### Debezium CDC and the outbox pattern
@@ -138,7 +138,7 @@ The database provides atomicity. Publishing is at-least-once, so consumers dedup
 ### Tiered, diskless, and topics as tables
 
 - **Tiered storage (KIP-405, production-ready in 3.9).** Closed segments move to object storage, and brokers keep only the hot tail locally. Retention is no longer bounded by disk (P2), so long replay is cheap and brokers recover faster. Compacted topics aren't supported.
-- **Diskless topics (KIP-1150, accepted March 2026).** Brokers write straight to object storage, which removes cross-AZ replication traffic, a major cloud cost, at the price of latency in the hundreds of milliseconds. The design lives in KIP-1163 and KIP-1164 and isn't in an Apache release yet (⚠ verify). WarpStream and AutoMQ already ship this model.
+- **Diskless topics (KIP-1150, accepted March 2026).** Brokers write straight to object storage, which removes cross-AZ replication traffic, a major cloud cost, at the price of higher produce latency (KIP-1163 targets about 500 ms at P50 and 1–2 s at P99). The design lives in KIP-1163 and KIP-1164, which are still under discussion, and isn't in an Apache release yet. WarpStream and AutoMQ already ship this model.
 - **Topics as tables.** Confluent Cloud's **Tableflow** materializes topics as **Iceberg (GA 2025)** and **Delta (GA October 2025, with Unity Catalog sync)** tables. That turns the "Kafka→Spark→bronze" hop into configuration and makes the log and the table two views of one dataset (P5, P11). You still own schema mapping, small files and access policy (P9).
 
 ### Failure modes
@@ -171,10 +171,10 @@ Kafka pays off when you need many independent consumers, replay and high through
 |---|---|---|---|---|
 | Apache Kafka (self-run) | brokers with local disks, optional tiering | native | unlimited | you run everything |
 | Confluent Cloud | Kafka on proprietary cloud storage; elastic units | native | unlimited | cost; lock-in on Tableflow, Flink and governance |
-| Amazon MSK | AWS-managed Apache Kafka; provisioned (incl. Express ⚠ verify) or Serverless | native | configurable; tiered on provisioned | you still size partitions and tune clients |
-| Azure Event Hubs | multitenant; TU/PU/CU units; 32 / 100 / 1,024 partitions (Standard / Premium / Dedicated) | protocol endpoint (not on Basic ⚠ verify) | 7 days Standard; 90 days Premium/Dedicated | 1 MB messages; no broker configs; transactions and Kafka Streams in Preview (⚠ verify); compaction GA |
-| Amazon Kinesis | shards (~1 MB/s in, 2 MB/s out); provisioned or on-demand (⚠ verify) | no (own SDK/KCL) | 24 h default, up to 365 days (⚠ verify) | per-shard limits; no Kafka ecosystem |
-| Apache Pulsar | stateless brokers over BookKeeper segments; built-in tiering, multi-tenancy, geo-replication | via adapter (⚠ verify) | unlimited | two systems to run |
+| Amazon MSK | AWS-managed Apache Kafka; provisioned (Standard or Express brokers) or Serverless | native | configurable; tiered on Standard brokers, elastic storage on Express | you still size partitions and tune clients |
+| Azure Event Hubs | multitenant (Dedicated is single-tenant); TU/PU/CU units; 32 / 100 / 1,024 partitions (Standard / Premium / Dedicated) | protocol endpoint (not on Basic) | 7 days Standard; 90 days Premium/Dedicated | 1 MB messages (20 MB on Dedicated); no broker configs; transactions and Kafka Streams in Preview (Premium/Dedicated only); compaction GA |
+| Amazon Kinesis | shards (~1 MB/s in, 2 MB/s out); provisioned or on-demand | no (own SDK/KCL) | 24 h default, up to 365 days | per-shard limits; no Kafka ecosystem |
+| Apache Pulsar | stateless brokers over BookKeeper segments; built-in tiering, multi-tenancy, geo-replication | via adapter | unlimited | two systems to run |
 | Redpanda | single C++ binary, Raft per partition, no JVM | compatible | tiered | lags behind the newest KIPs |
 
 ## Interview questions
@@ -259,3 +259,33 @@ ZooKeeper was a second distributed system to run and secure, and failover throug
 - https://learn.microsoft.com/azure/event-hubs/log-compaction
 - https://docs.azure.cn/en-us/event-hubs/apache-kafka-transactions
 - https://secure.businesswire.com/news/home/20251029878892/en/Confluent-Expands-Tableflow-to-Power-Real-Time-Analytics-and-AI-Across-Clouds
+- https://kafka.apache.org/43/configuration/consumer-configs/
+- https://kafka.apache.org/43/configuration/producer-configs/
+- https://kafka.apache.org/43/configuration/broker-configs/
+- https://kafka.apache.org/43/configuration/topic-configs/
+- https://kafka.apache.org/43/configuration/kafka-connect-configs/
+- https://kafka.apache.org/blog/2026/05/22/apache-kafka-4.3.0-release-announcement/
+- https://archive.apache.org/dist/kafka/4.2.1/RELEASE_NOTES.html
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-679:+Producer+will+enable+the+strongest+delivery+guarantee+by+default
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-848:+The+Next+Generation+of+the+Consumer+Rebalance+Protocol
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-932:+Queues+for+Kafka
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-405:+Kafka+Tiered+Storage
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-1150:+Diskless+Topics
+- https://lists.apache.org/thread/m42nj2qm5z4w2x8kt7x4kgghfzrdwl7q
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-1163:+Diskless+Core
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-1164:+Diskless+Coordinator
+- https://debezium.io/documentation/reference/stable/connectors/postgresql.html
+- https://spark.apache.org/docs/latest/streaming/structured-streaming-kafka-integration.html
+- https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html
+- https://docs.confluent.io/cloud/current/client-apps/sharegroups.html
+- https://docs.confluent.io/cloud/current/topics/tableflow/overview.html
+- https://docs.confluent.io/cloud/current/release-notes/index.html
+- https://learn.microsoft.com/en-us/azure/event-hubs/azure-event-hubs-apache-kafka-overview
+- https://learn.microsoft.com/en-us/azure/event-hubs/apache-kafka-transactions
+- https://docs.aws.amazon.com/streams/latest/dev/service-sizes-and-limits.html
+- https://docs.aws.amazon.com/streams/latest/dev/how-do-i-size-a-stream.html
+- https://docs.aws.amazon.com/streams/latest/dev/kinesis-extended-retention.html
+- https://docs.aws.amazon.com/msk/latest/developerguide/msk-broker-types-express.html
+- https://docs.aws.amazon.com/msk/latest/developerguide/msk-tiered-storage.html
+- https://docs.aws.amazon.com/msk/latest/developerguide/supported-kafka-versions.html
+- https://pulsar.apache.org/docs/next/adaptors-kafka/
