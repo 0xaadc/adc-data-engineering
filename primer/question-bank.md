@@ -3,7 +3,7 @@
 Every interview question from the primer, grouped by section. Answers are hidden: say your answer out loud, then expand to compare.
 Grade yourself on **mechanism → consequence → tradeoff → when not** ([§01](01-first-principles.md)), not on matching the wording.
 
-**203 questions.**
+**227 questions.**
 
 - [01. First Principles: Why Data Engineering Exists](#01-first-principles-why-data-engineering-exists) — 10 questions · [read section](01-first-principles.md)
 - [02. Storage Paradigms and Architectures](#02-storage-paradigms-and-architectures) — 10 questions · [read section](02-storage-paradigms.md)
@@ -23,6 +23,8 @@ Grade yourself on **mechanism → consequence → tradeoff → when not** ([§01
 - [16. System Design Walkthroughs](#16-system-design-walkthroughs) — 8 questions · [read section](16-system-design.md)
 - [17. Leadership and Behavioral (Architect / Co-Lead)](#17-leadership-and-behavioral-architect--co-lead) — 9 questions · [read section](17-leadership-behavioral.md)
 - [18. AI on the Data Platform](#18-ai-on-the-data-platform) — 9 questions · [read section](18-ai-on-data-platform.md)
+- [19. dbt: Analytics Engineering as Code](#19-dbt-analytics-engineering-as-code) — 14 questions · [read section](19-dbt.md)
+- [20. Declarative Automation Bundles: Deployment as Code](#20-declarative-automation-bundles-deployment-as-code) — 10 questions · [read section](20-declarative-automation-bundles.md)
 
 ## 01. First Principles: Why Data Engineering Exists
 
@@ -1259,7 +1261,7 @@ They layer rather than compete: normalized or Vault-style integration in silver,
 <details>
 <summary><b>Q: dbt or native transforms (Dynamic Tables, Lakeflow pipelines)?</b></summary>
 
-dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects: `dynamic_table` in dbt-snowflake, and `materialized_view` / `streaming_table` in dbt-databricks (the latter needs Unity Catalog and serverless SQL warehouses).
+dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects: `dynamic_table` in dbt-snowflake, and `materialized_view` / `streaming_table` in dbt-databricks (both need Unity Catalog and serverless SQL warehouses).
 
 </details>
 
@@ -1520,5 +1522,177 @@ Score retrieval (recall@k, MRR against labeled sources) separately from generati
 <summary><b>Q: What changes when agents reach the platform through MCP?</b></summary>
 
 The agent becomes a principal that can query and act. Use on-behalf-of-user auth with least privilege, audit every tool call, require approval for write tools because of prompt injection, and enforce rate and cost limits in a gateway.
+
+</details>
+
+## 19. dbt: Analytics Engineering as Code
+
+<details>
+<summary><b>Q: What is dbt and what problem does it solve?</b></summary>
+
+dbt is a compiler and runner for SQL transformations: each model is a `SELECT`, `ref()` builds the DAG, and dbt emits DDL/DML for the engine to run in order. It exists because ELT (P2) moved business logic into warehouse SQL with no dependency graph, tests, review, environments or docs. It moves no data, so cost and performance belong to the warehouse. It is not an ingestion tool, a stream processor or a cross-system orchestrator.
+
+</details>
+
+<details>
+<summary><b>Q: dbt platform vs dbt Core: when would you pay?</b></summary>
+
+You pay to stop operating the surroundings: IDE, scheduler, CI with PR schemas and deferral, a hosted catalog and dbt State. You also get features with no self-run equivalent, such as Semantic Layer serving and Mesh cross-project refs (P10). Usage pricing grows with model count and run frequency, so high-frequency jobs need watching. Self-run wins when a platform team already runs an orchestrator and CI, or when license or network rules forbid a SaaS control plane. The code is portable either way; the lock-in is in the workflow.
+
+</details>
+
+<details>
+<summary><b>Q: How would you run dbt on Databricks, and what are the options?</b></summary>
+
+All options use the Databricks adapter against a SQL warehouse, with Unity Catalog as the namespace. One: the dbt task in Lakeflow Jobs, which runs the CLI on jobs compute and sends SQL to a serverless or pro warehouse with a short-lived Run As token. Two: the dbt platform connected to Databricks, optionally triggered by the dbt platform task in Lakeflow Jobs (Preview). Three: self-run from Airflow or CI. Choose by where orchestration and governance should live: the dbt task if dbt is one step in a Databricks pipeline, the dbt platform if many analysts or several engines are involved.
+
+</details>
+
+<details>
+<summary><b>Q: dbt task in Lakeflow Jobs vs dbt platform jobs?</b></summary>
+
+The dbt task keeps everything in Databricks: one DAG with ingestion and ML, repair runs, Run As identity, DBU billing and archived artifacts. But you build slim CI, state storage and docs yourself, and the default runtime is Python v1. dbt platform jobs bring managed CI, deferral, dbt State and Catalog, at the price of seats, per-model usage and a second control plane that needs network access to your warehouse. The dbt platform task bridges the two. Make sure two schedulers never trigger the same models.
+
+</details>
+
+<details>
+<summary><b>Q: dbt Projects on Snowflake vs dbt platform?</b></summary>
+
+dbt Projects on Snowflake runs dbt inside Snowflake. The project is an RBAC-governed object, it runs as the calling role with no external credentials, Tasks schedule it, and the only cost is warehouse credits, which is strong for Snowflake-only teams and security reviews (P9). You give up dbt platform features (Semantic Layer serving, cross-project Mesh, Catalog), get only the listed commands, and tie orchestration to one platform. Pick it for a lean, single-platform estate; pick the dbt platform when you span engines or need those features.
+
+</details>
+
+<details>
+<summary><b>Q: How do incremental models work, and how do they fail?</b></summary>
+
+On later runs, `is_incremental()` enables a filter that selects the delta, and the strategy applies it: merge on `unique_key`, delete+insert, partition overwrite or microbatch windows. The common failure is a filter that misses late or backdated rows; the fix is a lookback, which is safe only because merge or window replacement is idempotent (P6). Other failures: duplicate keys break merge, `append` duplicates on retry, Snowflake's `insert_overwrite` replaces the whole table, and `on_schema_change: ignore` drops new columns quietly. Periodically reconcile against a full rebuild.
+
+</details>
+
+<details>
+<summary><b>Q: Which incremental strategy would you choose for a large event fact vs a mutable entity table?</b></summary>
+
+For event facts, replace whole time windows: microbatch, or on Databricks `insert_overwrite` by partition/cluster or `replace_where`. Retries, late data (via lookback) and backfills then become the same operation (P6). For entities that change anywhere in history, `merge` on the business key, with `incremental_predicates` to prune the target scan (P4). Use `delete+insert` if keys can repeat within a batch, and `append` only for immutable, deduplicated data.
+
+</details>
+
+<details>
+<summary><b>Q: How do you do CI for dbt?</b></summary>
+
+On each PR, build `state:modified+ --defer` against prod artifacts into an isolated per-PR schema or clone, run unit tests, data tests and lint, data-diff critical models, and drop the schema on merge ([§14](14-reliability-dataops.md)). The dbt platform provides this as CI jobs. Self-run needs a durable prod-manifest store; dbt Projects on Snowflake can import the last successful run's artifacts. Failure modes: a stale prod manifest that selects the wrong models, and a custom `generate_schema_name` that lets PR builds write to shared schemas.
+
+</details>
+
+<details>
+<summary><b>Q: dbt vs Dynamic Tables / Lakeflow pipelines?</b></summary>
+
+Native declarative tables let the engine compute increments and schedule refreshes. That means lower latency, less code and engine-level correctness, in exchange for lock-in and weaker test and docs workflows (P10, P11). dbt gives portability, tests, contracts and environments, but you own the delta logic. Usually you want both: author in dbt and materialize latency-sensitive models as `dynamic_table` or `streaming_table`/`materialized_view`. On Snowflake, pin the refresh mode so a fallback to full refresh fails loudly.
+
+</details>
+
+<details>
+<summary><b>Q: When would you NOT use dbt?</b></summary>
+
+Don't use it for sub-minute streaming, stateful event processing or ordered CDC application; use Lakeflow pipelines, Dynamic Tables or Flink ([§11](11-stream-processing.md)). It also fits poorly for mostly non-SQL transforms (documents, ML features, binary formats), and for a few simple native pipelines owned by engineers, where another tool is pure overhead. It isn't an ingestion tool or a cross-system orchestrator, and seeds aren't a loader.
+
+</details>
+
+<details>
+<summary><b>Q: How does dbt fit with the semantic layer?</b></summary>
+
+Models produce clean, tested tables. The dbt Semantic Layer defines entities, dimensions and metrics in YAML in the same repo, and MetricFlow (Apache 2.0) compiles each metric request into warehouse SQL, so metrics are reviewed like models. Serving them to BI tools and agents is a dbt platform feature, billed per queried metric. Alternatively, dbt can deploy platform-native layers: Databricks `metric_view`, or Snowflake semantic views via a package. Choose by where consumption happens ([§03](03-data-modeling.md)). The failure mode is BI that bypasses the layer, leaving one more definition instead of one.
+
+</details>
+
+<details>
+<summary><b>Q: What changed with Fusion/dbt v2 and the Fivetran merger, and should it change your choice?</b></summary>
+
+dbt v2 (formerly Fusion) is a Rust engine with strict parsing, static analysis and column lineage, GA on Snowflake, Databricks, BigQuery and Redshift. v1 is still supported and Apache 2.0. The license split matters for policy: dbt OSS is Apache 2.0, full v2 is free but proprietary, and strict analysis and dbt State need a platform login. The merger puts ingestion and transformation under one vendor. That doesn't change how dbt works, but it does raise bundling and lock-in questions at contract time (P11). Decide on mechanics: check v2 compatibility for your adapters and packages, and keep code in plain SQL in Git.
+
+</details>
+
+<details>
+<summary><b>Q: How do you attribute and control dbt warehouse cost?</b></summary>
+
+dbt's cost is the SQL it submits, so tag it and isolate it. Use `query_tag` on Snowflake or `query_tags` on Databricks, give prod jobs dedicated warehouses, and join query history to `run_results.json`. Then skip work (P4): incremental models, slim CI, dbt State skip and clone, and `full_refresh: false` on large tables. Watch for view chains that push cost onto every reader.
+
+</details>
+
+<details>
+<summary><b>Q: When should you split a dbt project with Mesh?</b></summary>
+
+Split when ownership is the bottleneck, not size alone: teams colliding in one repo, slow CI, or different security boundaries. Each project publishes `public` models with contracts and versions as its API (P8). The costs: Mesh is an Enterprise dbt platform feature, version deprecations need coordinating, and lineage can fragment across too many projects. First check whether groups, access modifiers and better selectors already solve the problem.
+
+</details>
+
+## 20. Declarative Automation Bundles: Deployment as Code
+
+<details>
+<summary><b>Q: What are bundles, and why use them instead of the UI?</b></summary>
+
+A bundle is a declarative, version-controlled spec of a project's Databricks resources and code. The CLI reconciles a target workspace to match it, tracking resource IDs in a state file. The UI gives you ClickOps: unreviewed, unreproducible state that drifts between environments and can't be promoted. Bundles make deploys idempotent (P6), changes reviewable (P8) and prod identity non-human (P9). The UI is still fine for exploration; skip bundles for one-off notebooks nobody schedules.
+
+</details>
+
+<details>
+<summary><b>Q: How do you promote a job from dev to prod?</b></summary>
+
+You don't copy the job; you deploy the same commit to a different target. Dev is `mode: development`, a per-user prefixed copy with paused schedules. Prod is `mode: production` with a pinned `root_path`, `git.branch: main`, `run_as` a service principal, and least-privilege `permissions`. The differences between environments live only in target variables and lookups (catalog, warehouse ID), so what was tested is what ships. The common failure is environment-specific logic hidden in code or hardcoded IDs, which makes "same artifact" a lie.
+
+</details>
+
+<details>
+<summary><b>Q: Bundles vs Terraform: where's the line?</b></summary>
+
+Draw it by rate of change and blast radius, not by capability. Terraform owns slow platform objects that a platform team changes rarely and that would hurt many teams if wrong: workspaces, networking, metastore, catalogs, storage credentials, cluster policies, grants. Bundles own project assets that change with every feature PR: jobs, pipelines, dashboards, apps. Bundles can now create catalogs and cluster policies on the direct engine, but two tools managing one object revert each other forever, so each object gets exactly one owner.
+
+</details>
+
+<details>
+<summary><b>Q: How do bundles relate to dbt?</b></summary>
+
+They're different layers. dbt owns *what* the SQL builds: models, tests, contracts, the DAG ([§19](19-dbt.md)). The bundle owns *how and when it runs*: a Lakeflow Job with a `dbt_task`, its warehouse, schedule, dependencies on upstream pipelines, run identity and per-target catalog. CI usually runs dbt's slim CI checks and `bundle validate` in the same PR, then the merge deploys the job. Don't let the bundle reach into dbt's logic, and don't schedule dbt outside the job, or you'll have two orchestrators.
+
+</details>
+
+<details>
+<summary><b>Q: How do you prevent drift between the UI and the repo?</b></summary>
+
+Make the repo the only write path. Bundle-deployed jobs are read-only in the UI by default, and dashboards fail to deploy if they were edited remotely. Neither stops a user with `CAN_MANAGE` from disconnecting a job, so the real control is permissions: humans get `CAN_VIEW`/`CAN_RUN` in prod and only the deploying service principal manages resources. Then a regular redeploy or `bundle plan` surfaces any residual drift. Treat a disconnect as an incident, and follow it with a PR so the next deploy doesn't silently revert the hotfix.
+
+</details>
+
+<details>
+<summary><b>Q: How would you set up CI/CD for a Databricks project?</b></summary>
+
+On every PR: unit tests, `bundle validate`, `bundle plan` against staging, a deploy to an isolated dev/staging target, and integration tests against cloned or sampled data. On merge to main: a protected-environment job deploys `-t prod` as a service principal authenticated by GitHub OIDC workload identity federation, so no Databricks secret exists. Serialize prod deploys with a concurrency group (the bundle lock is the backstop), pin the CLI version, and gate destructive plans on human review. Optionally have the PR produce `plan -o json` and apply exactly that with `deploy --plan`.
+
+</details>
+
+<details>
+<summary><b>Q: What's the Snowflake equivalent?</b></summary>
+
+The closest is DCM Projects (GA Aug 2026): SQL `DEFINE` statements with Jinja, PLAN then DEPLOY, one project object per environment. Unlike bundles, DEPLOY recomputes the plan against current state instead of replaying a reviewed one. Snowflake CLI project definitions (`snowflake.yml`) cover Snowpark, Streamlit and Native Apps. dbt Projects on Snowflake deploys dbt as a native object. schemachange is the community, Flyway-style imperative option, and Terraform covers account plumbing on both platforms. The bigger difference is the center of gravity: bundles revolve around workloads and code, DCM around database objects ([§14](14-reliability-dataops.md)).
+
+</details>
+
+<details>
+<summary><b>Q: What can go wrong with bundle deployments?</b></summary>
+
+Most failures come from declarative semantics or identity. Deleting a YAML block or running `destroy` deletes prod objects, and destroying a pipeline can drop its tables, so use `prevent_destroy` and plan review. Changing the bundle name, target, `root_path` or deployer creates a parallel deployment and orphans the old one, which can mean double-running schedules. Deploying as a user ties ownership to a person. On the direct engine, removing a field resets it to the default rather than leaving it alone. Also watch for secrets in YAML, dev collisions in shared schemas, and casual `--force-lock` or `--auto-approve` in prod.
+
+</details>
+
+<details>
+<summary><b>Q: How does a bundle know which workspace objects it owns, and how do you adopt existing UI-built jobs?</b></summary>
+
+Ownership is the state file: it maps each resource key to an object ID under the deployment's `root_path`. Names play no part, which is why a name match doesn't adopt anything. To adopt a UI job, run `bundle generate job --existing-job-id <id>` to write its YAML and download its files, then `bundle deployment bind <key> <id>` (or `generate --bind`) so the next deploy updates that job instead of creating a duplicate. Binding a pipeline keeps its tables, so there's no recompute.
+
+</details>
+
+<details>
+<summary><b>Q: One bundle per repo, per team, or per job?</b></summary>
+
+One bundle per unit that deploys together and has one owning team. A bundle shares a lock, a state file and a blast radius, so a monorepo-wide bundle makes every team's deploy wait on and risk everyone else's. One bundle per job loses cross-resource references (a job that triggers its pipeline by `${resources.pipelines.x.id}`) and multiplies boilerplate. A monorepo can hold many bundles; standardize them with a custom `bundle init` template rather than a giant shared config.
 
 </details>
