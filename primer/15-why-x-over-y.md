@@ -123,7 +123,7 @@ They layer rather than compete: normalized or Vault-style integration in silver,
 
 **Q: dbt or native transforms (Dynamic Tables, Lakeflow pipelines)?**
 
-dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects: `dynamic_table` in dbt-snowflake, and `materialized_view` / `streaming_table` in dbt-databricks (the latter needs Unity Catalog and serverless SQL warehouses).
+dbt gives you version-controlled SQL with tests, docs, lineage, and a large ecosystem, and it is portable across engines. Native declarative transforms give you managed incremental refresh, dependency scheduling, and streaming semantics without an external tool, at the cost of platform lock-in (P10). Choose dbt for multi-platform estates and analyst-heavy teams; choose native for tight incremental or streaming pipelines on one platform. They aren't exclusive: dbt adapters can materialize models as platform-native objects: `dynamic_table` in dbt-snowflake, and `materialized_view` / `streaming_table` in dbt-databricks (both need Unity Catalog and serverless SQL warehouses).
 
 **Q: Serverless or provisioned compute?**
 
