@@ -95,6 +95,8 @@ The main tools (compared below):
 
 ### dbt vs native declarative transforms
 
+> How dbt works and the ways to run it (dbt platform, Core/OSS, Databricks, Snowflake) are covered in [§19](19-dbt.md).
+
 **dbt** compiles SQL+Jinja models into DDL/DML that runs on the engine. It provides a DAG from `ref()`, tests (generic, singular, unit), docs, lineage, environments, incremental strategies (`merge`, `delete+insert`, `insert_overwrite`, `microbatch`) and snapshots for SCD2. Its value is portability plus a software-engineering workflow. Current state:
 - The Fivetran and dbt Labs merger **closed June 1, 2026**.
 - The **Fusion** engine (a Rust rewrite that parses and type-checks SQL locally), now shipped as **dbt v2**, is **(GA)** for Snowflake, Databricks, BigQuery and Redshift, with Spark in Beta.

@@ -92,7 +92,7 @@ Points that come up in interviews:
 - Data diff against prod for critical models.
 
 **Deployment.**
-- *Databricks:* **Declarative Automation Bundles** (formerly Databricks Asset Bundles; renamed March 2026, with CLI and file names unchanged). YAML defines jobs, pipelines and per-target settings, deployed with `databricks bundle deploy -t prod`.
+- *Databricks:* **Declarative Automation Bundles** (formerly Databricks Asset Bundles; renamed March 2026, with CLI and file names unchanged). YAML defines jobs, pipelines and per-target settings, deployed with `databricks bundle deploy -t prod`. Deep dive: [§20](20-declarative-automation-bundles.md).
 - *Snowflake:* **DCM Projects** **(GA, Aug 2026)**: declarative `DEFINE` statements, plan then deploy, Jinja templating per environment. Alternatives are `schemachange` (versioned imperative migrations) and dbt for transformations.
 - *Both:* Terraform providers for platform objects (workspaces, warehouses, roles, grants, policies). Split by rate of change: Terraform for slow-moving platform infrastructure; bundles, DCM or dbt for fast-moving data assets.
 

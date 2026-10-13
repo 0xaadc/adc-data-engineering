@@ -51,6 +51,9 @@ A principles-first crash course for data architect interviews on **Snowflake and
 | 16 | [System Design Walkthroughs](16-system-design.md) | Framework plus three end-to-end designs |
 | 17 | [Leadership and Behavioral](17-leadership-behavioral.md) | Design reviews, disagreement, co-leading, STAR template |
 | 18 | [AI on the Data Platform](18-ai-on-data-platform.md) | Feature stores, vector search, governed RAG, Cortex vs. Mosaic AI |
+| **Part 6: Tooling Deep Dives** | | |
+| 19 | [dbt: Analytics Engineering as Code](19-dbt.md) | How dbt works; dbt platform vs. Core/OSS vs. dbt on Databricks vs. dbt Projects on Snowflake |
+| 20 | [Declarative Automation Bundles](20-declarative-automation-bundles.md) | Deployment as code on Databricks (formerly DABs); vs. Terraform, dbt, Snowflake DCM |
 | **Review** | | |
 | — | [Cheat Sheet](cheat-sheet.md) | One page for the last 15 minutes |
 | — | [Question Bank](question-bank.md) | Every interview question, with answers hidden for self-testing |
@@ -71,6 +74,8 @@ A principles-first crash course for data architect interviews on **Snowflake and
 **About 2 hours:** §01 → §05 → §08 → §10 → §15 → Cheat Sheet.
 
 **30 minutes:** Cheat Sheet → §15 → the Takeaways sections of §05, §08, §10, §11.
+
+**Tooling deep dive (about 1 hour):** §09 Batch pipelines → §19 dbt → §14 CI/CD and environments → §20 Declarative Automation Bundles.
 
 ## Section template
 
