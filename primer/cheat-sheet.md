@@ -119,8 +119,28 @@
 | Kafka + ZooKeeper | **KRaft-only since 4.0**; share groups ("queues") GA | [§10](10-kafka.md) |
 | Spark continuous trigger on Databricks | Not supported. Use **real-time mode** (GA since Mar 2026; still Preview inside Lakeflow pipelines); `Trigger.Once` deprecated → `availableNow` | [§11](11-stream-processing.md) |
 | dbt Labs independent | **Merged with Fivetran** | [§09](09-batch-pipelines.md) |
+| dbt Cloud | **dbt platform** | [§19](19-dbt.md) |
+| dbt Fusion engine / state-aware orchestration | **dbt v2** (GA) / **dbt State** | [§19](19-dbt.md) |
+| Bundles deploy via Terraform | **Direct deployment engine** (Terraform engine removed) | [§20](20-declarative-automation-bundles.md) |
 
 Fact-checked against official docs and release notes in October 2026.
+
+## 7c. dbt and bundles in ten lines ([§19](19-dbt.md), [§20](20-declarative-automation-bundles.md))
+
+1. **dbt moves no data.** It compiles `SELECT` + Jinja into DDL/DML, and the warehouse runs it and bills for it (P2, P10). `ref()` builds the DAG.
+2. Incremental models use `is_incremental()` + `unique_key` + a strategy (`append`, `merge`, `delete+insert`, `insert_overwrite`, `microbatch`). Add a lookback window for late data (P6). `insert_overwrite` replaces the **whole table on Snowflake** but only the affected partitions on Databricks.
+3. Native materializations: `dynamic_table` (dbt-snowflake), `materialized_view` / `streaming_table` (dbt-databricks; run as Lakeflow pipelines; need Unity Catalog + serverless SQL warehouses).
+4. **Four ways to run it:**
+   - self-run CLI: you own CI, docs and state
+   - **dbt platform** (formerly dbt Cloud): IDE, jobs, CI, Semantic Layer, Mesh, dbt State; seats + models built
+   - **Databricks dbt task** in Lakeflow Jobs: the CLI runs on jobs compute, SQL goes to a SQL warehouse
+   - **dbt Projects on Snowflake**: a `DBT PROJECT` object, `EXECUTE DBT PROJECT`, scheduled with Tasks, no extra license
+5. **dbt v2** (formerly Fusion) is GA (Sept 2026) on Snowflake, Databricks, BigQuery and Redshift. **dbt OSS** is Apache 2.0, and full v2 is free but proprietary. dbt Labs merged with Fivetran (June 2026).
+6. Slim CI: `state:modified+` + `--defer` builds only what changed against prod artifacts. **dbt State** (formerly state-aware orchestration) skips unchanged nodes in production.
+7. **Bundles** (Declarative Automation Bundles, formerly DABs): `databricks.yml` + targets (dev/prod) declare jobs, pipelines, dashboards, apps and schemas next to the code. `databricks bundle validate → plan → deploy -t prod`.
+8. The deploy is desired state → state file → reconcile: delete a resource from the YAML and the deploy deletes it. The **direct engine** replaced Terraform (GA June 2026; the Terraform engine was removed in CLI 1.20).
+9. `mode: development` prefixes names with `[dev <user>]` and pauses schedules. Prod deploys run as a **service principal** via GitHub OIDC, with `run_as` set. Bundle-deployed jobs are read-only in the UI. Adopt UI-built jobs with `bundle generate` + `deployment bind`.
+10. **Split by rate of change:** Terraform for platform infrastructure, bundles for project assets, dbt for SQL logic. Bundles deploy the job that runs dbt. The Snowflake analog is DCM Projects (+ `snow` CLI, schemachange).
 
 ## 8. Foundations in one line each
 

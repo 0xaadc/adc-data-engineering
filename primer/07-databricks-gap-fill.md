@@ -92,7 +92,7 @@ They exist so that FinOps and audit can be plain SQL instead of API scraping. Us
 
 This is the name since Mar 2026; bundles were formerly called Databricks Asset Bundles. The rename doesn't break anything: the `databricks bundle` CLI and existing configs are unchanged.
 
-A bundle is a YAML project that declares jobs, pipelines, dashboards and apps next to their code, with dev, staging and prod targets. CI/CD deploys it. It exists because objects created by clicking in the UI drift between environments, can't be reviewed, and can't be promoted. A bundle makes deployment repeatable (P6). Deep dive: [§20](20-declarative-automation-bundles.md).
+A bundle is a YAML (or, since Oct 2025, Python) project that declares jobs, pipelines, dashboards and apps next to their code, with dev, staging and prod targets. CI/CD deploys it. It exists because objects created by clicking in the UI drift between environments, can't be reviewed, and can't be promoted. A bundle makes deployment repeatable (P6). Deep dive: [§20](20-declarative-automation-bundles.md).
 
 ### Platform expansion
 
