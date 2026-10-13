@@ -260,7 +260,7 @@ Databricks' guidance draws the same line: bundles for data and AI workloads, Ter
 | Declarative Automation Bundles **(GA)** | Jobs, pipelines, dashboards, apps, ML endpoints, project schemas/volumes, plus files and artifacts | Declarative plan/deploy, replayable plan | `resources.json` in the workspace under `root_path/state` | Fast, product team |
 | dbt (Core or platform) | SQL models, tests, contracts, docs | Declarative DAG of SELECTs, rebuilt per run | Warehouse objects + `manifest.json` artifacts | Fastest, analytics engineers |
 | Snowflake DCM Projects **(GA, Aug 2026)** | Databases, schemas, tables, dynamic tables, tasks, warehouses, roles, grants | Declarative `DEFINE` + Jinja, PLAN then DEPLOY (deploy re-plans; no replay) | The DCM project object in Snowflake, one per environment | Fast to medium |
-| Snowflake CLI (`snow`) project definitions | `snowflake.yml` entities: Snowpark functions/procedures, Streamlit, Native Apps; drives `snow dcm` and `snow dbt` | Declarative entities deployed by CLI | Snowflake objects and stages | Fast |
+| Snowflake CLI (`snow`) project definitions | `snowflake.yml` entities: Snowpark functions/procedures, Streamlit, Native Apps (the same CLI also runs `snow dcm` and `snow dbt` in CI) | Declarative entities deployed by the CLI | Snowflake objects and stages | Fast |
 | schemachange (community, not an official Snowflake product) | Any SQL, as ordered scripts | Imperative versioned (`V`), repeatable (`R`) and always (`A`) scripts | `CHANGE_HISTORY` table | Medium |
 | dbt Projects on Snowflake **(GA, Nov 2025)** | dbt project as a schema-level `DBT PROJECT` object | dbt, deployed with `snow dbt deploy`, run with `EXECUTE DBT PROJECT` or tasks | Snowflake object + stored artifacts | Fastest |
 
